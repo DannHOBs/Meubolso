@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block conteudo %}
+
+{% if editando and faz_parte_de_recorrencia %}
+    <div class="alerta">
+        🔁 Esta conta faz parte de uma recorrência. Alterar aqui muda só esta conta.
+        Para mudar todas, use <a href="{{ url_for('recorrentes') }}"><strong>Contas recorrentes</strong></a>.
+    </div>
+{% endif %}
+
+<form method="post" class="cartao" autocomplete="off">
+
+    <div class="campo">
+        <label for="descricao">O que é?</label>
+        <input type="text" id="descricao" name="descricao" maxlength="80" placeholder="Ex.: Aluguel"
+               value="{{ form.get('descricao', '') }}" required {% if not editando %}autofocus{% endif %}>
+    </div>
+
+    <div class="campo">
+        <label for="valor">Valor (R$)</label>
+        <input type="text" id="valor" name="valor" inputmode="decimal" placeholder="0,00"
+               value="{{ form.get('valor', '') }}" required>
+    </div>
+
+    <div class="campo">
+        <label for="categoria_id">Categoria</label>
+        <select id="categoria_id" name="categoria_id" required>
+            <option value="">Escolha...</option>
+            {% for c in categorias %}
+                <option value="{{ c.id }}" {% if form.get('categoria_id') == c.id|string %}selected{% endif %}>
+                    {{ c.icone }} {{ c.nome }}{% if not c.ativa %} (oculta){% endif %}
+                </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="campo">
+        <label for="vencimento">Vencimento</label>
+        <input type="date" id="vencimento" name="vencimento" value="{{ form.get('vencimento', '') }}" required>
+    </div>
+
+    {% if not editando %}
+        <div class="campo">
+            <label style="display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600;">
+                <input type="checkbox" name="repete" value="1" {% if form.get('repete') %}checked{% endif %}
+                       style="width: 22px; height: 22px;">
+                🔁 Repetir todo mês
+            </label>
+            <div class="dica">Usa o mesmo dia do vencimento. Se o mês for mais curto, vence no último dia.</div>
+        </div>
+    {% endif %}
+
+    <button type="submit" class="botao botao-bloco">Salvar conta</button>
+
+</form>
+
+{% if editando %}
+    <form method="post" action="{{ url_for('conta_excluir', id_conta=id_conta) }}"
+          onsubmit="return confirm('Excluir esta conta?');">
+        <button type="submit" class="botao botao-cinza botao-bloco">Excluir conta</button>
+    </form>
+{% endif %}
+
+{% endblock %}

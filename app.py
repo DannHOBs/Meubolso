@@ -3,7 +3,7 @@ import secrets
 import sqlite3
 import tempfile
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
 from flask import (
@@ -320,11 +320,21 @@ def inicio():
         for gasto in gastos
     ]
 
+    hoje = date.today()
+    garantir_recorrentes(hoje)
+    n_atrasadas, total_atrasadas = banco.resumo_atrasadas(hoje.isoformat())
+
     return render_template(
         "inicio.html",
         aba="inicio",
         endpoint_mes="inicio",
         nome=session.get("nome", ""),
+        contas_proximas=[
+            enriquecer_conta(c, hoje)
+            for c in banco.listar_contas_em_aberto_ate((hoje + timedelta(days=7)).isoformat(), limite=4)
+        ],
+        n_atrasadas=n_atrasadas,
+        total_atrasadas=total_atrasadas,
         entradas=entradas,
         saidas=saidas,
         saldo_mes=entradas - saidas,
@@ -479,8 +489,12 @@ def excluir(id_lancamento):
     if item is None:
         abort(404)
 
-    banco.excluir_lancamento(id_lancamento)
-    flash("Lançamento excluído.", "sucesso")
+    reabriu_conta = banco.excluir_lancamento(id_lancamento)
+
+    if reabriu_conta:
+        flash("Lançamento excluído. A conta que ele pagava voltou para \"em aberto\".", "aviso")
+    else:
+        flash("Lançamento excluído.", "sucesso")
     return redirect(url_for("lancamentos", **mes_do_lancamento(item["data"])))
 
 
@@ -556,6 +570,369 @@ def categoria_alternar(id_categoria):
 
     banco.alternar_categoria(id_categoria)
     return redirect(url_for("categorias"))
+
+
+# ==========================================
+# CONTAS A PAGAR
+# ==========================================
+
+def garantir_recorrentes(hoje, ate=None):
+    """Gera as contas recorrentes até o mês seguinte (ou até o mês que estiver sendo visto)."""
+    proximo_mes_, proximo_ano = mes_vizinho(hoje.month, hoje.year, 1)
+    alvo = (proximo_ano, proximo_mes_)
+
+    if ate:
+        limite = mes_vizinho(hoje.month, hoje.year, 24)
+        alvo = max(alvo, min((ate[1], ate[0]), (limite[1], limite[0])))
+
+    banco.gerar_recorrentes(hoje, alvo[0], alvo[1])
+
+
+def enriquecer_conta(conta, hoje):
+    """Acrescenta a situação (paga, atrasada...) e o texto do selo de cada conta."""
+    dados = dict(conta)
+
+    if conta["paga"]:
+        dados["situacao"] = "paga"
+        dados["rotulo"] = f"Paga em {formatar_data(conta['data_pagamento'])}" if conta["data_pagamento"] else "Paga"
+        return dados
+
+    dias = (date.fromisoformat(conta["vencimento"]) - hoje).days
+
+    if dias < 0:
+        dados["situacao"] = "atrasada"
+        dados["rotulo"] = "Atrasada há 1 dia" if dias == -1 else f"Atrasada há {-dias} dias"
+    elif dias == 0:
+        dados["situacao"] = "hoje"
+        dados["rotulo"] = "Vence hoje"
+    elif dias == 1:
+        dados["situacao"] = "proxima"
+        dados["rotulo"] = "Vence amanhã"
+    elif dias <= 7:
+        dados["situacao"] = "proxima"
+        dados["rotulo"] = f"Vence em {dias} dias"
+    else:
+        dados["situacao"] = "futura"
+        dados["rotulo"] = f"Vence em {formatar_data(conta['vencimento'])[:5]}"
+
+    return dados
+
+
+@app.route("/contas")
+def contas():
+    hoje = date.today()
+    mes, ano = periodo()
+    garantir_recorrentes(hoje, ate=(mes, ano))
+
+    data_inicio, data_fim = limites_do_mes(mes, ano)
+    a_pagar, ja_pago = banco.totais_das_contas(data_inicio, data_fim)
+    n_atrasadas, total_atrasadas = banco.resumo_atrasadas(hoje.isoformat())
+
+    atrasadas = [
+        enriquecer_conta(c, hoje)
+        for c in banco.listar_contas_em_aberto_ate((hoje - timedelta(days=1)).isoformat())
+    ]
+    ids_atrasadas = {c["id"] for c in atrasadas}
+
+    do_mes = [
+        enriquecer_conta(c, hoje)
+        for c in banco.listar_contas_do_periodo(data_inicio, data_fim)
+        if c["id"] not in ids_atrasadas
+    ]
+
+    return render_template(
+        "contas.html",
+        aba="contas",
+        endpoint_mes="contas",
+        a_pagar=a_pagar,
+        ja_pago=ja_pago,
+        atrasadas=atrasadas,
+        n_atrasadas=n_atrasadas,
+        total_atrasadas=total_atrasadas,
+        itens=do_mes,
+        **dados_do_periodo(mes, ano),
+    )
+
+
+def ler_formulario_conta():
+    """Lê e confere o formulário de conta. Devolve (dados, mensagem_de_erro)."""
+    descricao = request.form.get("descricao", "").strip()[:80]
+    valor = ler_valor(request.form.get("valor"))
+    vencimento = ler_data(request.form.get("vencimento"))
+
+    try:
+        categoria_id = int(request.form.get("categoria_id", ""))
+    except ValueError:
+        categoria_id = None
+
+    categoria = banco.buscar_categoria(categoria_id) if categoria_id else None
+
+    if not descricao:
+        return None, "Diga o que é a conta. Exemplo: Aluguel"
+
+    if valor is None:
+        return None, "Informe um valor maior que zero. Exemplo: 850,00"
+
+    if vencimento is None:
+        return None, "Informe uma data de vencimento válida."
+
+    if categoria is None or categoria["tipo"] != "despesa":
+        return None, "Escolha uma categoria."
+
+    return {
+        "descricao": descricao,
+        "valor": valor,
+        "categoria_id": categoria["id"],
+        "vencimento": vencimento,
+    }, None
+
+
+def voltar_para_contas(vencimento):
+    return redirect(url_for("contas", **mes_do_lancamento(vencimento)))
+
+
+@app.route("/contas/nova", methods=["GET", "POST"])
+def conta_nova():
+    if request.method == "POST":
+        dados, erro = ler_formulario_conta()
+
+        if erro:
+            flash(erro, "erro")
+        else:
+            if request.form.get("repete"):
+                banco.adicionar_conta_recorrente(
+                    dados["descricao"], dados["valor"], dados["categoria_id"], dados["vencimento"]
+                )
+                flash("Conta criada. Ela vai se repetir todo mês.", "sucesso")
+            else:
+                banco.adicionar_conta(
+                    dados["descricao"], dados["valor"], dados["categoria_id"], dados["vencimento"]
+                )
+                flash("Conta criada.", "sucesso")
+
+            return voltar_para_contas(dados["vencimento"])
+
+    return render_template(
+        "conta_form.html",
+        aba="contas",
+        editando=False,
+        categorias=banco.listar_categorias("despesa"),
+        form=request.form if request.method == "POST" else {"vencimento": date.today().isoformat()},
+        titulo_pagina="Nova conta",
+        voltar_url=url_for("contas"),
+        voltar_texto="Contas",
+    )
+
+
+@app.route("/contas/<int:id_conta>/editar", methods=["GET", "POST"])
+def conta_editar(id_conta):
+    conta = banco.buscar_conta(id_conta)
+
+    if conta is None:
+        abort(404)
+
+    if conta["paga"]:
+        flash("Conta paga não pode ser editada. Desfaça o pagamento primeiro.", "aviso")
+        return voltar_para_contas(conta["vencimento"])
+
+    if request.method == "POST":
+        dados, erro = ler_formulario_conta()
+
+        if erro:
+            flash(erro, "erro")
+        else:
+            banco.editar_conta(
+                id_conta, dados["descricao"], dados["valor"], dados["categoria_id"], dados["vencimento"]
+            )
+            flash("Conta atualizada.", "sucesso")
+            return voltar_para_contas(dados["vencimento"])
+
+        form = request.form
+    else:
+        form = {
+            "descricao": conta["descricao"],
+            "valor": centavos_para_campo(conta["valor_centavos"]),
+            "categoria_id": str(conta["categoria_id"]),
+            "vencimento": conta["vencimento"],
+        }
+
+    categorias = [
+        c for c in banco.listar_categorias("despesa", so_ativas=False)
+        if c["ativa"] or c["id"] == conta["categoria_id"]
+    ]
+
+    return render_template(
+        "conta_form.html",
+        aba="contas",
+        editando=True,
+        id_conta=id_conta,
+        faz_parte_de_recorrencia=bool(conta["recorrencia_id"]),
+        categorias=categorias,
+        form=form,
+        titulo_pagina="Editar conta",
+        voltar_url=url_for("contas", **mes_do_lancamento(conta["vencimento"])),
+        voltar_texto="Contas",
+    )
+
+
+@app.route("/contas/<int:id_conta>/excluir", methods=["POST"])
+def conta_excluir(id_conta):
+    conta = banco.buscar_conta(id_conta)
+
+    if conta is None:
+        abort(404)
+
+    if banco.excluir_conta(id_conta):
+        flash("Conta excluída.", "sucesso")
+    else:
+        flash("Conta paga não pode ser excluída. Desfaça o pagamento primeiro.", "aviso")
+
+    return voltar_para_contas(conta["vencimento"])
+
+
+@app.route("/contas/<int:id_conta>/pagar", methods=["POST"])
+def conta_pagar(id_conta):
+    conta = banco.buscar_conta(id_conta)
+
+    if conta is None:
+        abort(404)
+
+    if banco.pagar_conta(id_conta, date.today().isoformat()):
+        flash(f"Pagamento de {formatar_moeda(conta['valor_centavos'])} registrado nos lançamentos.", "sucesso")
+    else:
+        flash("Essa conta já estava paga.", "aviso")
+
+    return voltar_para_contas(conta["vencimento"])
+
+
+@app.route("/contas/<int:id_conta>/desfazer", methods=["POST"])
+def conta_desfazer(id_conta):
+    conta = banco.buscar_conta(id_conta)
+
+    if conta is None:
+        abort(404)
+
+    if banco.desfazer_pagamento(id_conta):
+        flash("Pagamento desfeito: o lançamento foi removido e a conta voltou para \"em aberto\".", "sucesso")
+    else:
+        flash("Essa conta não estava paga.", "aviso")
+
+    return voltar_para_contas(conta["vencimento"])
+
+
+# ==========================================
+# CONTAS RECORRENTES
+# ==========================================
+
+@app.route("/recorrentes")
+def recorrentes():
+    return render_template(
+        "recorrentes.html",
+        aba="contas",
+        itens=banco.listar_recorrencias(),
+        titulo_pagina="Contas recorrentes",
+        subtitulo_pagina="As que se repetem todo mês",
+        voltar_url=url_for("contas"),
+        voltar_texto="Contas",
+    )
+
+
+def ler_formulario_recorrencia():
+    """Lê e confere o formulário de recorrência. Devolve (dados, mensagem_de_erro)."""
+    descricao = request.form.get("descricao", "").strip()[:80]
+    valor = ler_valor(request.form.get("valor"))
+
+    try:
+        dia = int(request.form.get("dia", ""))
+    except ValueError:
+        dia = None
+
+    try:
+        categoria = banco.buscar_categoria(int(request.form.get("categoria_id", "")))
+    except ValueError:
+        categoria = None
+
+    if not descricao:
+        return None, "Diga o que é a conta. Exemplo: Aluguel"
+
+    if valor is None:
+        return None, "Informe um valor maior que zero. Exemplo: 850,00"
+
+    if categoria is None or categoria["tipo"] != "despesa":
+        return None, "Escolha uma categoria."
+
+    if dia is None or not 1 <= dia <= 31:
+        return None, "Informe o dia do mês, de 1 a 31."
+
+    return {
+        "descricao": descricao,
+        "valor": valor,
+        "categoria_id": categoria["id"],
+        "dia": dia,
+    }, None
+
+
+@app.route("/recorrentes/<int:id_recorrencia>/editar", methods=["GET", "POST"])
+def recorrente_editar(id_recorrencia):
+    recorrencia = banco.buscar_recorrencia(id_recorrencia)
+
+    if recorrencia is None:
+        abort(404)
+
+    if request.method == "POST":
+        dados, erro = ler_formulario_recorrencia()
+
+        if erro:
+            flash(erro, "erro")
+        else:
+            banco.editar_recorrencia(
+                id_recorrencia, dados["descricao"], dados["valor"], dados["categoria_id"], dados["dia"]
+            )
+            flash("Recorrência atualizada (inclusive as contas que ainda estão em aberto).", "sucesso")
+            return redirect(url_for("recorrentes"))
+
+        form = request.form
+    else:
+        form = {
+            "descricao": recorrencia["descricao"],
+            "valor": centavos_para_campo(recorrencia["valor_centavos"]),
+            "categoria_id": str(recorrencia["categoria_id"]),
+            "dia": str(recorrencia["dia"]),
+        }
+
+    categorias = [
+        c for c in banco.listar_categorias("despesa", so_ativas=False)
+        if c["ativa"] or c["id"] == recorrencia["categoria_id"]
+    ]
+
+    return render_template(
+        "recorrente_form.html",
+        aba="contas",
+        categorias=categorias,
+        form=form,
+        titulo_pagina="Editar recorrência",
+        voltar_url=url_for("recorrentes"),
+        voltar_texto="Recorrentes",
+    )
+
+
+@app.route("/recorrentes/<int:id_recorrencia>/alternar", methods=["POST"])
+def recorrente_alternar(id_recorrencia):
+    if banco.buscar_recorrencia(id_recorrencia) is None:
+        abort(404)
+
+    banco.alternar_recorrencia(id_recorrencia)
+    return redirect(url_for("recorrentes"))
+
+
+@app.route("/recorrentes/<int:id_recorrencia>/excluir", methods=["POST"])
+def recorrente_excluir(id_recorrencia):
+    if banco.buscar_recorrencia(id_recorrencia) is None:
+        abort(404)
+
+    banco.excluir_recorrencia(id_recorrencia)
+    flash("Recorrência excluída, junto com as contas dela que estavam em aberto.", "sucesso")
+    return redirect(url_for("recorrentes"))
 
 
 # ==========================================

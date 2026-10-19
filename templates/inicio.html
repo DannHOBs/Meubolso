@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import item %}
+{% from "_macros.html" import item, conta %}
 
 {% block topo %}
     {% set saudacao = "Olá, " ~ nome ~ "!" %}
@@ -32,6 +32,29 @@
                 <div class="valor-medio negativo">{{ saidas|moeda }}</div>
             </div>
         </div>
+    </div>
+
+    <div class="cartao">
+        <div class="cartao-cabecalho">
+            <h2>Contas a pagar</h2>
+            <a class="botao botao-claro botao-pequeno" href="{{ url_for('contas') }}">Ver contas</a>
+        </div>
+
+        {% if n_atrasadas %}
+            <div class="alerta alerta-erro" style="margin-bottom: 6px;">
+                ⚠️ {{ n_atrasadas }} {{ 'conta atrasada' if n_atrasadas == 1 else 'contas atrasadas' }}
+                ({{ total_atrasadas|moeda }})
+            </div>
+        {% endif %}
+
+        {% for c in contas_proximas %}
+            {{ conta(c) }}
+        {% else %}
+            <div class="vazio" style="padding: 14px 10px;">
+                <span class="grande">✅</span>
+                Nada vencendo nos próximos 7 dias.
+            </div>
+        {% endfor %}
     </div>
 
     <div class="cartao">

@@ -27,3 +27,43 @@
 
     </div>
 {% endmacro %}
+
+
+{% macro conta(c, acoes=False) %}
+    {% set selos = {'paga': 'selo-verde', 'atrasada': 'selo-vermelho', 'hoje': 'selo-ambar', 'proxima': 'selo-azul', 'futura': ''} %}
+    {% set fundos = {'paga': 'fundo-verde', 'atrasada': 'fundo-vermelho', 'hoje': 'fundo-ambar', 'proxima': 'fundo-azul', 'futura': 'fundo-cinza'} %}
+
+    <div class="item" style="flex-wrap: wrap;">
+
+        <div class="item-icone {{ fundos[c.situacao] }}">
+            {{ c.categoria_icone or '🏷️' }}
+        </div>
+
+        <div class="item-corpo">
+            <div class="item-titulo">{{ c.descricao }}{% if c.recorrencia_id %} 🔁{% endif %}</div>
+            <div class="item-sub">{{ c.categoria_nome }} · vence {{ c.vencimento|data_br }}</div>
+            <div style="margin-top: 5px;"><span class="selo {{ selos[c.situacao] }}">{{ c.rotulo }}</span></div>
+        </div>
+
+        <div class="item-valor">{{ c.valor_exibido|moeda }}</div>
+
+        {% if acoes %}
+            <div class="item-acoes" style="width: 100%; justify-content: flex-end; margin-top: 0;">
+                {% if c.paga %}
+                    <form method="post" action="{{ url_for('conta_desfazer', id_conta=c.id) }}"
+                          onsubmit="return confirm('Desfazer o pagamento? O lançamento da despesa será removido.');" style="margin: 0;">
+                        <button type="submit" class="botao botao-cinza botao-pequeno">Desfazer pagamento</button>
+                    </form>
+                {% else %}
+                    <a class="botao botao-claro botao-pequeno" href="{{ url_for('conta_editar', id_conta=c.id) }}">Editar</a>
+
+                    <form method="post" action="{{ url_for('conta_pagar', id_conta=c.id) }}"
+                          onsubmit="return confirm('Registrar o pagamento de {{ c.valor_exibido|moeda }} hoje?');" style="margin: 0;">
+                        <button type="submit" class="botao botao-receita botao-pequeno">✓ Pagar</button>
+                    </form>
+                {% endif %}
+            </div>
+        {% endif %}
+
+    </div>
+{% endmacro %}

@@ -3,7 +3,7 @@
 App de finanças pessoais (nome de trabalho): receitas, despesas, categorias editáveis, resumo do mês e backup.
 Mesma base do FINANCBETEL (Flask + SQLite + APK pelo GitHub), mas para uso pessoal, com um único usuário.
 
-## O que já tem (versão 1)
+## O que tem
 
 - Primeiro acesso: nome + senha. Senha pedida a cada abertura; bloqueio de 60 s após 3 erros; sai sozinho após 15 min parado.
 - Início: saldo do mês, entradas, saídas, saldo acumulado, gastos por categoria e últimos lançamentos.
@@ -12,10 +12,23 @@ Mesma base do FINANCBETEL (Flask + SQLite + APK pelo GitHub), mas para uso pesso
 - Backup: criar, baixar, restaurar a partir de um arquivo (para trocar de celular).
 - Alterar senha.
 
+### Novo na versão 2: contas a pagar
+
+- Aba **Contas**: contas com vencimento, separadas em "Atrasadas" e as do mês, com os totais "A pagar" e "Já pago".
+- **✓ Pagar** registra a despesa nos Lançamentos (com a data de hoje) e marca a conta como paga.
+  **Desfazer pagamento** remove esse lançamento e reabre a conta. Excluir o lançamento pela aba Lançamentos também reabre a conta.
+- **Repetir todo mês**: marque ao criar a conta. As contas dos meses seguintes são criadas sozinhas (aluguel, internet, assinaturas).
+  Em Mais → Contas recorrentes dá para editar (vale também para as contas em aberto), pausar ou excluir.
+  Meses curtos usam o último dia (dia 31 em fevereiro vence dia 28/29). Meses passados nunca são criados, para não gerar falsas "atrasadas".
+- **Lembrete**: o Início mostra as contas atrasadas e as que vencem nos próximos 7 dias. (Notificações do Android ficam para uma versão futura.)
+- Conta paga não pode ser editada nem excluída: desfaça o pagamento antes.
+- Backups feitos na versão 1 continuam funcionando (as tabelas novas são criadas ao restaurar).
+
 ## Testar no computador
 
     pip install -r requirements.txt
-    python tests/teste_basico.py     # teste automático (usa banco temporário)
+    python tests/teste_basico.py     # teste automático da versão 1 (usa banco temporário)
+    python tests/teste_contas.py     # teste automático das contas e recorrências
     python app.py                    # abre em http://127.0.0.1:5000
 
 ## Gerar o APK
@@ -30,7 +43,6 @@ Python 3.13 está definido em `android/app/build.gradle` e no workflow; se mudar
 
 ## Ideias para as próximas versões
 
-- Contas a pagar com vencimento e lembrete; despesas recorrentes.
 - Metas / orçamento por categoria.
 - Cartão de crédito e parcelas.
 - Relatório em PDF.
