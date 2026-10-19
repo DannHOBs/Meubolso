@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block conteudo %}
+<form method="post" class="cartao" autocomplete="off" style="margin-top: 18px;">
+
+    <div class="campo">
+        <label for="senha">Senha</label>
+        <input type="password" id="senha" name="senha" required autofocus>
+    </div>
+
+    <button type="submit" class="botao botao-bloco">Entrar</button>
+
+</form>
+{% endblock %}

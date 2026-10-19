@@ -1,0 +1,29 @@
+{% macro item(l, acoes=False) %}
+    <div class="item" {% if acoes %}style="flex-wrap: wrap;"{% endif %}>
+
+        <div class="item-icone {{ 'fundo-verde' if l.tipo == 'receita' else 'fundo-vermelho' }}">
+            {{ l.categoria_icone or ('💰' if l.tipo == 'receita' else '🏷️') }}
+        </div>
+
+        <div class="item-corpo">
+            <div class="item-titulo">{{ l.descricao }}</div>
+            <div class="item-sub">{{ l.categoria_nome }} · {{ l.data|data_br }}</div>
+        </div>
+
+        <div class="item-valor {{ 'positivo' if l.tipo == 'receita' else 'negativo' }}">
+            {{ '+' if l.tipo == 'receita' else '-' }}{{ l.valor_centavos|moeda }}
+        </div>
+
+        {% if acoes %}
+            <div class="item-acoes" style="width: 100%; justify-content: flex-end; margin-top: 0;">
+                <a class="botao botao-claro botao-pequeno" href="{{ url_for('editar', id_lancamento=l.id) }}">Editar</a>
+
+                <form method="post" action="{{ url_for('excluir', id_lancamento=l.id) }}"
+                      onsubmit="return confirm('Excluir este lançamento?');" style="margin: 0;">
+                    <button type="submit" class="botao botao-cinza botao-pequeno">Excluir</button>
+                </form>
+            </div>
+        {% endif %}
+
+    </div>
+{% endmacro %}

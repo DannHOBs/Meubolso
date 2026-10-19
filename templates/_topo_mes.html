@@ -1,0 +1,20 @@
+{% set filtro = tipo_filtro if tipo_filtro is defined else none %}
+<header class="topo alto">
+    <div class="topo-interno">
+
+        {% if saudacao %}
+            <p style="margin: 0 0 12px;">{{ saudacao }}</p>
+        {% endif %}
+
+        <div class="navegador-mes">
+            <a class="seta" aria-label="Mês anterior"
+               href="{{ url_for(endpoint_mes, mes=ant.mes, ano=ant.ano, tipo=filtro) }}">‹</a>
+
+            <div class="mes-titulo">{{ nome_mes }} {{ ano }}</div>
+
+            <a class="seta" aria-label="Próximo mês"
+               href="{{ url_for(endpoint_mes, mes=prox.mes, ano=prox.ano, tipo=filtro) }}">›</a>
+        </div>
+
+    </div>
+</header>

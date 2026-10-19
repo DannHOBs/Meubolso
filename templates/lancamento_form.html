@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block conteudo %}
+
+{% if not editando %}
+    <div class="abas-tipo">
+        <a href="{{ url_for('novo', tipo='receita') }}" class="{{ 'ativa-receita' if tipo == 'receita' }}">➕ Receita</a>
+        <a href="{{ url_for('novo', tipo='despesa') }}" class="{{ 'ativa-despesa' if tipo == 'despesa' }}">➖ Despesa</a>
+    </div>
+{% endif %}
+
+<form method="post" class="cartao" autocomplete="off">
+
+    <div class="campo">
+        <label for="valor">Valor (R$)</label>
+        <input type="text" id="valor" name="valor" inputmode="decimal" placeholder="0,00"
+               value="{{ form.get('valor', '') }}" required {% if not editando %}autofocus{% endif %}>
+    </div>
+
+    <div class="campo">
+        <label for="descricao">Descrição (opcional)</label>
+        <input type="text" id="descricao" name="descricao" maxlength="80"
+               placeholder="{{ 'Ex.: Pagamento do mês' if tipo == 'receita' else 'Ex.: Compras da semana' }}"
+               value="{{ form.get('descricao', '') }}">
+        <div class="dica">Se deixar em branco, usamos o nome da categoria.</div>
+    </div>
+
+    <div class="campo">
+        <label for="categoria_id">Categoria</label>
+        <select id="categoria_id" name="categoria_id" required>
+            <option value="">Escolha...</option>
+            {% for c in categorias %}
+                <option value="{{ c.id }}" {% if form.get('categoria_id') == c.id|string %}selected{% endif %}>
+                    {{ c.icone }} {{ c.nome }}{% if not c.ativa %} (oculta){% endif %}
+                </option>
+            {% endfor %}
+        </select>
+        <div class="dica">Quer outra categoria? Em Mais → Categorias você cria e edita.</div>
+    </div>
+
+    <div class="campo">
+        <label for="data">Data</label>
+        <input type="date" id="data" name="data" value="{{ form.get('data', '') }}" required>
+    </div>
+
+    <button type="submit" class="botao botao-bloco {{ 'botao-receita' if tipo == 'receita' else 'botao-despesa' }}">
+        Salvar
+    </button>
+
+</form>
+
+{% if editando %}
+    <form method="post" action="{{ url_for('excluir', id_lancamento=id_lancamento) }}"
+          onsubmit="return confirm('Excluir este lançamento?');">
+        <button type="submit" class="botao botao-cinza botao-bloco">Excluir lançamento</button>
+    </form>
+{% endif %}
+
+{% endblock %}

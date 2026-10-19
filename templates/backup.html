@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block conteudo %}
+
+<div class="alerta alerta-aviso">
+    ⚠️ Se você desinstalar o app ou trocar de celular, os dados somem. Baixe um backup e guarde fora do aparelho (e-mail, nuvem, computador).
+</div>
+
+<div class="cartao">
+    <h2>Criar backup agora</h2>
+    <form method="post" action="{{ url_for('criar_backup_web') }}">
+        <button type="submit" class="botao botao-bloco">💾 Criar backup</button>
+    </form>
+</div>
+
+<div class="cartao">
+    <h2>Backups neste aparelho</h2>
+
+    {% for b in backups %}
+        <div class="item">
+            <div class="item-corpo">
+                <div class="item-titulo">{{ b.data }}</div>
+                <div class="item-sub">{{ b.tamanho_kb }} KB</div>
+            </div>
+            <a class="botao botao-claro botao-pequeno" href="{{ url_for('baixar_backup', nome=b.nome) }}">Baixar</a>
+        </div>
+    {% else %}
+        <div class="vazio">Nenhum backup ainda.</div>
+    {% endfor %}
+</div>
+
+<div class="cartao">
+    <h2>Restaurar de um arquivo</h2>
+    <p class="dica" style="margin-top: 0;">
+        Escolha um arquivo de backup (.db) baixado antes. Os dados atuais serão trocados pelos do arquivo
+        (antes, guardamos uma cópia dos atuais). Você vai entrar com a senha que usava naquela cópia.
+    </p>
+
+    <form method="post" action="{{ url_for('restaurar_backup_web') }}" enctype="multipart/form-data"
+          onsubmit="return confirm('Substituir os dados atuais pelos do arquivo escolhido?');">
+        <div class="campo">
+            <input type="file" name="arquivo" accept="*/*" required>
+        </div>
+        <button type="submit" class="botao botao-cinza botao-bloco">Restaurar backup</button>
+    </form>
+</div>
+
+{% endblock %}

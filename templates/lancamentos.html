@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% from "_macros.html" import item %}
+
+{% block topo %}
+    {% include "_topo_mes.html" %}
+{% endblock %}
+
+{% block conteudo %}
+
+<div class="chips" style="margin-top: 4px;">
+    <a class="chip {{ 'ativo' if not tipo_filtro }}" href="{{ url_for('lancamentos', mes=mes, ano=ano) }}">Todos</a>
+    <a class="chip {{ 'ativo' if tipo_filtro == 'receita' }}" href="{{ url_for('lancamentos', mes=mes, ano=ano, tipo='receita') }}">Receitas</a>
+    <a class="chip {{ 'ativo' if tipo_filtro == 'despesa' }}" href="{{ url_for('lancamentos', mes=mes, ano=ano, tipo='despesa') }}">Despesas</a>
+</div>
+
+<div class="cartao">
+    {% for l in itens %}
+        {{ item(l, acoes=True) }}
+    {% else %}
+        <div class="vazio">
+            <span class="grande">🧾</span>
+            Nenhum lançamento neste período.<br>
+            Toque no <strong>+</strong> para adicionar.
+        </div>
+    {% endfor %}
+</div>
+
+{% endblock %}

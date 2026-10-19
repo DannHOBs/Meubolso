@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    >
+
+    <title>{% block titulo %}{{ titulo_pagina|default("Meu Bolso") }} - Meu Bolso{% endblock %}</title>
+
+    <style>
+
+        :root {
+            --azul: #4338ca;
+            --azul2: #6366f1;
+            --fundo: #f3f5f9;
+            --texto: #0f172a;
+            --suave: #64748b;
+            --linha: #e6eaf1;
+            --verde: #16a34a;
+            --verde-bg: #e8f7ee;
+            --vermelho: #dc2626;
+            --vermelho-bg: #fdecec;
+            --ambar: #b45309;
+            --ambar-bg: #fef3c7;
+            --azul-bg: #eef0ff;
+            --raio: 16px;
+            --sombra: 0 2px 10px rgba(15, 23, 42, 0.06);
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html,
+        body {
+            margin: 0;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+            background: var(--fundo);
+            color: var(--texto);
+            padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+        }
+
+        body.sem-menu {
+            padding-bottom: 24px;
+        }
+
+        a {
+            color: inherit;
+        }
+
+        /* ---------- TOPO ---------- */
+
+        .topo {
+            background: linear-gradient(135deg, var(--azul), var(--azul2));
+            color: #fff;
+            padding: calc(18px + env(safe-area-inset-top, 0px)) 0 26px;
+            border-radius: 0 0 26px 26px;
+        }
+
+        .topo.alto {
+            padding-bottom: 66px;
+        }
+
+        .topo-interno {
+            max-width: 760px;
+            margin: 0 auto;
+            padding: 0 18px;
+        }
+
+        .topo h1 {
+            margin: 0;
+            font-size: 24px;
+            line-height: 1.2;
+        }
+
+        .topo p {
+            margin: 6px 0 0;
+            opacity: 0.88;
+            font-size: 14px;
+        }
+
+        .voltar {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: #fff;
+            text-decoration: none;
+            font-size: 14px;
+            opacity: 0.92;
+            margin-bottom: 8px;
+        }
+
+        .topo-linha {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .pagina {
+            max-width: 760px;
+            margin: 0 auto;
+            padding: 16px 16px 0;
+        }
+
+        .sobe {
+            margin-top: -46px;
+            position: relative;
+        }
+
+        /* ---------- CARTÕES ---------- */
+
+        .cartao {
+            background: #fff;
+            border-radius: var(--raio);
+            box-shadow: var(--sombra);
+            padding: 16px;
+            margin-bottom: 14px;
+        }
+
+        .cartao h2,
+        .titulo-secao {
+            font-size: 16px;
+            margin: 0 0 12px;
+        }
+
+        .titulo-secao {
+            margin: 22px 2px 10px;
+        }
+
+        .cartao-cabecalho {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .cartao-cabecalho h2 {
+            margin: 0;
+        }
+
+        .grade2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .grade3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        .metrica {
+            background: #fff;
+            border-radius: var(--raio);
+            box-shadow: var(--sombra);
+            padding: 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+        }
+
+        .icone-redondo {
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 19px;
+            flex: none;
+        }
+
+        .fundo-verde { background: var(--verde-bg); }
+        .fundo-vermelho { background: var(--vermelho-bg); }
+        .fundo-azul { background: var(--azul-bg); }
+        .fundo-ambar { background: var(--ambar-bg); }
+        .fundo-cinza { background: #eef1f6; }
+
+        .rotulo-pequeno {
+            font-size: 12px;
+            color: var(--suave);
+        }
+
+        .valor-medio {
+            font-size: 18px;
+            font-weight: 700;
+            margin-top: 2px;
+            white-space: nowrap;
+        }
+
+        .valor-grande {
+            font-size: 30px;
+            font-weight: 800;
+            margin-top: 4px;
+        }
+
+        .positivo { color: var(--verde); }
+        .negativo { color: var(--vermelho); }
+        .azul-texto { color: var(--azul2); }
+
+        .resumo-trio {
+            text-align: center;
+        }
+
+        .resumo-trio .valor-medio {
+            font-size: 15px;
+        }
+
+        /* ---------- BOTÕES ---------- */
+
+        .botao {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 13px 18px;
+            border-radius: 12px;
+            border: none;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            text-decoration: none;
+            background: var(--azul2);
+            color: #fff;
+            font-family: inherit;
+        }
+
+        .botao-bloco { width: 100%; }
+        .botao-receita { background: var(--verde); }
+        .botao-despesa { background: var(--vermelho); }
+        .botao-perigo { background: var(--vermelho); }
+        .botao-claro { background: var(--azul-bg); color: var(--azul); }
+        .botao-cinza { background: #e9edf3; color: #334155; }
+
+        .botao-pequeno {
+            padding: 9px 13px;
+            font-size: 13px;
+            border-radius: 10px;
+        }
+
+        .linha-botoes {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .linha-botoes > * {
+            flex: 1;
+        }
+
+        /* ---------- FORMULÁRIOS ---------- */
+
+        .campo {
+            margin-bottom: 14px;
+        }
+
+        .campo label {
+            display: block;
+            font-size: 13px;
+            font-weight: 700;
+            color: #475569;
+            margin-bottom: 6px;
+        }
+
+        input[type="text"],
+        input[type="password"],
+        input[type="number"],
+        input[type="date"],
+        input[type="email"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 13px;
+            border: 1px solid #cdd5e1;
+            border-radius: 12px;
+            font-size: 16px;
+            background: #fff;
+            color: var(--texto);
+            font-family: inherit;
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: var(--azul2);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+        }
+
+        .linha-campos {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .dica {
+            font-size: 12px;
+            color: var(--suave);
+            margin-top: 5px;
+        }
+
+        /* ---------- AVISOS E SELOS ---------- */
+
+        .alerta {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+            padding: 12px 14px;
+            border-radius: 12px;
+            font-size: 14px;
+            line-height: 1.45;
+            margin-bottom: 14px;
+            background: var(--azul-bg);
+            color: var(--azul);
+        }
+
+        .alerta-erro { background: var(--vermelho-bg); color: #991b1b; }
+        .alerta-sucesso { background: var(--verde-bg); color: #166534; }
+        .alerta-aviso { background: var(--ambar-bg); color: var(--ambar); }
+
+        .selo {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            background: #eef1f6;
+            color: #475569;
+        }
+
+        .selo-verde { background: var(--verde-bg); color: #166534; }
+        .selo-vermelho { background: var(--vermelho-bg); color: #991b1b; }
+        .selo-azul { background: var(--azul-bg); color: var(--azul); }
+        .selo-ambar { background: var(--ambar-bg); color: var(--ambar); }
+
+        /* ---------- LISTAS ---------- */
+
+        .item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--linha);
+        }
+
+        .item:last-child {
+            border-bottom: none;
+        }
+
+        .item-icone {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex: none;
+        }
+
+        .item-corpo {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .item-titulo {
+            font-weight: 600;
+            font-size: 15px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .item-sub {
+            font-size: 12px;
+            color: var(--suave);
+            margin-top: 2px;
+        }
+
+        .item-valor {
+            font-weight: 700;
+            white-space: nowrap;
+            font-size: 15px;
+        }
+
+        .item-acoes {
+            display: flex;
+            gap: 6px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+
+        .vazio {
+            text-align: center;
+            color: var(--suave);
+            padding: 26px 10px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .vazio .grande {
+            font-size: 34px;
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        /* ---------- ABAS, CHIPS, NAVEGADOR DE MÊS ---------- */
+
+        .abas-tipo {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .abas-tipo a {
+            text-align: center;
+            padding: 13px;
+            border-radius: 12px;
+            border: 2px solid var(--linha);
+            text-decoration: none;
+            font-weight: 700;
+            color: var(--suave);
+            background: #fff;
+        }
+
+        .abas-tipo a.ativa-receita {
+            border-color: var(--verde);
+            background: var(--verde-bg);
+            color: var(--verde);
+        }
+
+        .abas-tipo a.ativa-despesa {
+            border-color: var(--vermelho);
+            background: var(--vermelho-bg);
+            color: var(--vermelho);
+        }
+
+        .chips {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding-bottom: 4px;
+            margin-bottom: 14px;
+        }
+
+        .chip {
+            white-space: nowrap;
+            padding: 8px 14px;
+            border-radius: 999px;
+            background: #fff;
+            border: 1px solid var(--linha);
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+            color: var(--suave);
+        }
+
+        .chip.ativo {
+            background: var(--azul2);
+            border-color: var(--azul2);
+            color: #fff;
+        }
+
+        .navegador-mes {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .navegador-mes .mes-titulo {
+            font-size: 20px;
+            font-weight: 700;
+            text-align: center;
+            flex: 1;
+        }
+
+        .seta {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            text-decoration: none;
+            font-size: 22px;
+            line-height: 1;
+        }
+
+        /* ---------- GRÁFICOS SIMPLES (sem bibliotecas) ---------- */
+
+        .grafico {
+            display: flex;
+            align-items: stretch;
+            justify-content: space-between;
+            height: 170px;
+            gap: 6px;
+            padding-top: 6px;
+        }
+
+        .grafico-coluna {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .barras {
+            flex: 1;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            gap: 3px;
+            border-bottom: 1px solid var(--linha);
+        }
+
+        .barra {
+            width: 40%;
+            max-width: 18px;
+            min-height: 3px;
+            border-radius: 5px 5px 0 0;
+        }
+
+        .barra.rec { background: var(--verde); }
+        .barra.des { background: var(--vermelho); }
+
+        .grafico-rotulo {
+            text-align: center;
+            font-size: 11px;
+            color: var(--suave);
+            padding-top: 6px;
+        }
+
+        .grafico-rotulo.atual {
+            color: var(--azul2);
+            font-weight: 700;
+        }
+
+        .legenda {
+            display: flex;
+            gap: 16px;
+            font-size: 12px;
+            color: var(--suave);
+            margin-top: 10px;
+        }
+
+        .ponto {
+            display: inline-block;
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+
+        .categoria-linha {
+            margin-bottom: 14px;
+        }
+
+        .categoria-topo {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            margin-bottom: 6px;
+            gap: 10px;
+        }
+
+        .barra-cat {
+            height: 8px;
+            background: #eef1f6;
+            border-radius: 999px;
+            overflow: hidden;
+        }
+
+        .barra-cat > span {
+            display: block;
+            height: 100%;
+            border-radius: 999px;
+        }
+
+        /* ---------- LINHAS DE MENU (aba Mais) ---------- */
+
+        .linha-menu {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 14px 4px;
+            border-bottom: 1px solid var(--linha);
+            text-decoration: none;
+        }
+
+        .linha-menu:last-child {
+            border-bottom: none;
+        }
+
+        .linha-menu .texto {
+            flex: 1;
+        }
+
+        .linha-menu strong {
+            display: block;
+            font-size: 15px;
+        }
+
+        .linha-menu span.sub {
+            font-size: 12px;
+            color: var(--suave);
+        }
+
+        .linha-menu .seta-menu {
+            color: #a3adbf;
+            font-size: 20px;
+        }
+
+        /* ---------- MENU INFERIOR E BOTÃO + ---------- */
+
+        .menu-inferior {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #fff;
+            border-top: 1px solid var(--linha);
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+            z-index: 50;
+        }
+
+        .menu-inferior-interno {
+            display: flex;
+            max-width: 760px;
+            margin: 0 auto;
+        }
+
+        .menu-inferior a {
+            flex: 1;
+            text-align: center;
+            padding: 9px 4px 8px;
+            text-decoration: none;
+            color: var(--suave);
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .menu-inferior a svg {
+            display: block;
+            margin: 0 auto 3px;
+            width: 24px;
+            height: 24px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .menu-inferior a.ativo {
+            color: var(--azul2);
+        }
+
+        .fab {
+            position: fixed;
+            right: 18px;
+            bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: var(--azul2);
+            color: #fff;
+            border: none;
+            font-size: 30px;
+            line-height: 1;
+            box-shadow: 0 6px 16px rgba(99, 102, 241, 0.45);
+            cursor: pointer;
+            z-index: 60;
+        }
+
+        .folha-fundo {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(15, 23, 42, 0.45);
+            display: none;
+            z-index: 70;
+        }
+
+        .folha-fundo.aberta {
+            display: block;
+        }
+
+        .folha {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #fff;
+            border-radius: 22px 22px 0 0;
+            padding: 18px 18px calc(20px + env(safe-area-inset-bottom, 0px));
+            z-index: 80;
+            transform: translateY(100%);
+            transition: transform 0.2s ease;
+        }
+
+        .folha.aberta {
+            transform: none;
+        }
+
+        .folha h3 {
+            margin: 0 0 14px;
+            font-size: 17px;
+        }
+
+        .rodape {
+            text-align: center;
+            color: #94a3b8;
+            font-size: 12px;
+            padding: 18px 0 6px;
+        }
+
+        /* esconde o menu e o botão + enquanto o teclado está aberto */
+        body.teclado .menu-inferior,
+        body.teclado .fab {
+            display: none;
+        }
+
+        @media (max-width: 380px) {
+            .valor-grande { font-size: 26px; }
+            .linha-campos { grid-template-columns: 1fr; }
+        }
+
+    </style>
+
+    {% block estilos %}{% endblock %}
+
+</head>
+
+<body class="{% if sem_menu %}sem-menu{% endif %}">
+
+    {% block topo %}
+
+        <header class="topo">
+
+            <div class="topo-interno">
+
+                {% if voltar_url %}
+
+                    <a href="{{ voltar_url }}" class="voltar">
+                        ← {{ voltar_texto|default("Voltar") }}
+                    </a>
+
+                {% endif %}
+
+                <h1>{{ titulo_pagina }}</h1>
+
+                {% if subtitulo_pagina %}
+                    <p>{{ subtitulo_pagina }}</p>
+                {% endif %}
+
+            </div>
+
+        </header>
+
+    {% endblock %}
+
+    <main class="pagina">
+
+        {% with mensagens = get_flashed_messages(with_categories=true) %}
+
+            {% for categoria_msg, mensagem in mensagens %}
+
+                <div class="alerta {% if categoria_msg in ['erro', 'error', 'danger'] %}alerta-erro{% elif categoria_msg in ['sucesso', 'success'] %}alerta-sucesso{% elif categoria_msg in ['aviso', 'warning'] %}alerta-aviso{% endif %}">
+                    {{ mensagem }}
+                </div>
+
+            {% endfor %}
+
+        {% endwith %}
+
+        {% block conteudo %}{% endblock %}
+
+    </main>
+
+    {% if not sem_menu %}
+
+        {% if aba in ["inicio", "lancamentos"] %}
+
+            <button
+                type="button"
+                class="fab"
+                id="fab"
+                aria-label="Novo lançamento"
+            >+</button>
+
+            <div class="folha-fundo" id="folha-fundo"></div>
+
+            <div class="folha" id="folha">
+
+                <h3>Novo lançamento</h3>
+
+                <div class="linha-botoes">
+
+                    <a href="{{ url_for('novo', tipo='receita') }}" class="botao botao-receita">
+                        ➕ Receita
+                    </a>
+
+                    <a href="{{ url_for('novo', tipo='despesa') }}" class="botao botao-despesa">
+                        ➖ Despesa
+                    </a>
+
+                </div>
+
+            </div>
+
+        {% endif %}
+
+        <nav class="menu-inferior">
+
+            <div class="menu-inferior-interno">
+
+                <a href="{{ url_for('inicio') }}" class="{% if aba == 'inicio' %}ativo{% endif %}">
+                    <svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg>
+                    Início
+                </a>
+
+                <a href="{{ url_for('lancamentos') }}" class="{% if aba == 'lancamentos' %}ativo{% endif %}">
+                    <svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 9v.01M18 15v.01"/></svg>
+                    Lançamentos
+                </a>
+
+                <a href="{{ url_for('mais') }}" class="{% if aba == 'mais' %}ativo{% endif %}">
+                    <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg>
+                    Mais
+                </a>
+
+            </div>
+
+        </nav>
+
+    {% endif %}
+
+    <script>
+        (function () {
+            var botao = document.getElementById("fab");
+            var fundo = document.getElementById("folha-fundo");
+            var folha = document.getElementById("folha");
+
+            if (!botao || !fundo || !folha) {
+                return;
+            }
+
+            function alternar(aberta) {
+                fundo.classList.toggle("aberta", aberta);
+                folha.classList.toggle("aberta", aberta);
+            }
+
+            botao.addEventListener("click", function () { alternar(true); });
+            fundo.addEventListener("click", function () { alternar(false); });
+        })();
+    </script>
+
+    <script>
+        (function () {
+            var campos = /^(INPUT|SELECT|TEXTAREA)$/;
+
+            document.addEventListener("focusin", function (evento) {
+                if (campos.test(evento.target.tagName)) {
+                    document.body.classList.add("teclado");
+                }
+            });
+
+            document.addEventListener("focusout", function () {
+                document.body.classList.remove("teclado");
+            });
+        })();
+    </script>
+
+    {% block scripts %}{% endblock %}
+
+</body>
+
+</html>

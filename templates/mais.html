@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block conteudo %}
+
+<div class="cartao">
+
+    <a class="linha-menu" href="{{ url_for('categorias') }}">
+        <div class="icone-redondo fundo-azul">🏷️</div>
+        <div class="texto"><strong>Categorias</strong><span class="sub">Crie, renomeie ou oculte</span></div>
+        <span class="seta-menu">›</span>
+    </a>
+
+    <a class="linha-menu" href="{{ url_for('tela_backup') }}">
+        <div class="icone-redondo fundo-verde">💾</div>
+        <div class="texto"><strong>Backup</strong><span class="sub">Salvar e restaurar seus dados</span></div>
+        <span class="seta-menu">›</span>
+    </a>
+
+    <a class="linha-menu" href="{{ url_for('alterar_senha') }}">
+        <div class="icone-redondo fundo-ambar">🔑</div>
+        <div class="texto"><strong>Alterar senha</strong><span class="sub">Troque a senha de acesso</span></div>
+        <span class="seta-menu">›</span>
+    </a>
+
+    <a class="linha-menu" href="{{ url_for('sair') }}">
+        <div class="icone-redondo fundo-cinza">🚪</div>
+        <div class="texto"><strong>Sair</strong><span class="sub">Bloquear o app agora</span></div>
+        <span class="seta-menu">›</span>
+    </a>
+
+</div>
+
+<div class="rodape">Meu Bolso · {{ versao_build }}</div>
+
+{% endblock %}
