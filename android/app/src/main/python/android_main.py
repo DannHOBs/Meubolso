@@ -35,7 +35,7 @@ def _chave_secreta(pasta_dados):
     return chave
 
 
-def iniciar(pasta_dados, pasta_templates, porta):
+def iniciar(pasta_dados, pasta_templates, porta, token_rapido=""):
     global _servidor
 
     if _servidor is not None:
@@ -51,6 +51,10 @@ def iniciar(pasta_dados, pasta_templates, porta):
     os.environ["MEUBOLSO_BACKUPS"] = os.path.join(pasta_dados, "backups")
     os.environ["MEUBOLSO_TEMPLATES"] = pasta_templates
     os.environ["MEUBOLSO_SECRET_KEY"] = _chave_secreta(pasta_dados)
+
+    # Código secreto desta abertura do app: só o Android conhece. Libera a "entrada rápida"
+    # (bloqueio do celular) sem que outros aplicativos consigam usá-la.
+    os.environ["MEUBOLSO_TOKEN_RAPIDO"] = token_rapido
 
     # Importar o app já cria o banco, se ainda não existir.
     import app as meubolso

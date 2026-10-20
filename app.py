@@ -1,9 +1,11 @@
+import hmac
 import os
 import secrets
 import sqlite3
 import tempfile
 import time
 from datetime import date, datetime, timedelta
+from io import BytesIO
 from decimal import Decimal, InvalidOperation
 
 from flask import (
@@ -13,6 +15,7 @@ from flask import (
     redirect,
     render_template,
     request,
+    send_file,
     send_from_directory,
     session,
     url_for,
@@ -21,6 +24,8 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 import backup
 import banco
+import relatorio
+import seguranca
 
 try:
     import build_info  # criado pelo GitHub na hora de gerar o APK
@@ -45,7 +50,6 @@ MESES = [
 
 TIPOS = ("receita", "despesa")
 
-SENHA_MINIMA = 4
 INATIVIDADE_SEGUNDOS = 15 * 60
 TENTATIVAS_MAXIMAS = 3
 BLOQUEIO_SEGUNDOS = 60
@@ -114,9 +118,23 @@ app.jinja_env.filters["moeda"] = formatar_moeda
 app.jinja_env.filters["data_br"] = formatar_data
 
 
+def rapido_disponivel():
+    """O desbloqueio pelo bloqueio do celular só existe dentro do app Android."""
+    return bool(os.getenv("MEUBOLSO_TOKEN_RAPIDO"))
+
+
+def rapido_ativo():
+    return rapido_disponivel() and banco.obter_config("desbloqueio_rapido") == "1"
+
+
 @app.context_processor
 def variaveis_globais():
-    return {"versao_build": VERSAO_BUILD}
+    return {
+        "versao_build": VERSAO_BUILD,
+        "senha_fraca": banco.obter_config("senha_fraca") == "1",
+        "rapido_disponivel": rapido_disponivel(),
+        "rapido_ativo": rapido_ativo(),
+    }
 
 
 # ==========================================
@@ -177,7 +195,7 @@ def proteger_sistema():
             return redirect(url_for("primeiro_acesso"))
         return None
 
-    if endpoint in ("login", "primeiro_acesso"):
+    if endpoint in ("login", "primeiro_acesso", "entrada_rapida"):
         return None
 
     if not session.get("logado"):
@@ -210,15 +228,17 @@ def primeiro_acesso():
         nome = request.form.get("nome", "").strip()[:40]
         senha = request.form.get("senha", "")
         confirmar = request.form.get("confirmar", "")
+        erro_senha = seguranca.validar_senha(senha)
 
         if not nome:
             flash("Diga como podemos te chamar.", "erro")
-        elif len(senha) < SENHA_MINIMA:
-            flash(f"A senha precisa ter pelo menos {SENHA_MINIMA} caracteres.", "erro")
+        elif erro_senha:
+            flash(erro_senha, "erro")
         elif senha != confirmar:
             flash("As duas senhas não são iguais.", "erro")
         else:
             banco.criar_usuario(nome, generate_password_hash(senha))
+            banco.definir_config("senha_fraca", "0")
             entrar(nome)
             return redirect(url_for("inicio"))
 
@@ -241,8 +261,11 @@ def login():
         else:
             usuario = banco.obter_usuario()
 
-            if usuario and check_password_hash(usuario["senha"], request.form.get("senha", "")):
+            senha_digitada = request.form.get("senha", "")
+
+            if usuario and check_password_hash(usuario["senha"], senha_digitada):
                 _falhas_login.update(quantas=0, bloqueado_ate=0.0)
+                banco.definir_config("senha_fraca", "1" if seguranca.validar_senha(senha_digitada) else "0")
                 entrar(usuario["nome"])
                 return redirect(url_for("inicio"))
 
@@ -277,15 +300,17 @@ def alterar_senha():
         nova = request.form.get("nova", "")
         confirmar = request.form.get("confirmar", "")
         usuario = banco.obter_usuario()
+        erro_senha = seguranca.validar_senha(nova)
 
         if not check_password_hash(usuario["senha"], atual):
             flash("A senha atual está incorreta.", "erro")
-        elif len(nova) < SENHA_MINIMA:
-            flash(f"A nova senha precisa ter pelo menos {SENHA_MINIMA} caracteres.", "erro")
+        elif erro_senha:
+            flash(erro_senha, "erro")
         elif nova != confirmar:
             flash("As duas senhas novas não são iguais.", "erro")
         else:
             banco.alterar_senha(generate_password_hash(nova))
+            banco.definir_config("senha_fraca", "0")
             flash("Senha alterada com sucesso.", "sucesso")
             return redirect(url_for("mais"))
 
@@ -293,6 +318,55 @@ def alterar_senha():
         "senha.html",
         aba="mais",
         titulo_pagina="Alterar senha",
+        voltar_url=url_for("mais"),
+        voltar_texto="Mais",
+    )
+
+
+def senha_atual_confere(senha):
+    usuario = banco.obter_usuario()
+    return bool(usuario) and check_password_hash(usuario["senha"], senha)
+
+
+@app.route("/entrada-rapida")
+def entrada_rapida():
+    """Entrada pelo bloqueio do celular. Só o app Android conhece o código (token) desta abertura."""
+    token = os.getenv("MEUBOLSO_TOKEN_RAPIDO", "")
+    enviado = request.args.get("t", "")
+    usuario = banco.obter_usuario()
+
+    if token and usuario and rapido_ativo() and hmac.compare_digest(enviado.encode(), token.encode()):
+        entrar(usuario["nome"])
+        return redirect(url_for("inicio"))
+
+    flash("Não foi possível entrar com o bloqueio do celular. Digite sua senha.", "erro")
+    return redirect(url_for("login"))
+
+
+@app.route("/desbloqueio-rapido", methods=["GET", "POST"])
+def desbloqueio_rapido():
+    if request.method == "POST":
+        acao = request.form.get("acao")
+
+        if not rapido_disponivel():
+            flash("Esse recurso só existe no aplicativo para Android.", "aviso")
+        elif acao == "ativar":
+            if senha_atual_confere(request.form.get("senha", "")):
+                banco.definir_config("desbloqueio_rapido", "1")
+                flash("Desbloqueio rápido ligado. Na próxima abertura o app pede o bloqueio do celular.", "sucesso")
+            else:
+                flash("Senha incorreta.", "erro")
+        elif acao == "desativar":
+            banco.definir_config("desbloqueio_rapido", "0")
+            flash("Desbloqueio rápido desligado. Agora só a senha do app abre.", "sucesso")
+
+        return redirect(url_for("desbloqueio_rapido"))
+
+    return render_template(
+        "desbloqueio.html",
+        aba="mais",
+        titulo_pagina="Desbloqueio rápido",
+        subtitulo_pagina="Digital, rosto ou PIN do celular",
         voltar_url=url_for("mais"),
         voltar_texto="Mais",
     )
@@ -1107,17 +1181,20 @@ def mais():
 
 
 # ==========================================
-# BACKUP
+# BACKUP (protegido por senha)
 # ==========================================
 
 @app.route("/backup")
 def tela_backup():
+    backups = backup.listar_backups()
+
     return render_template(
         "backup.html",
         aba="mais",
-        backups=backup.listar_backups(),
+        backups=backups,
+        antigos_sem_protecao=any(not b["protegido"] for b in backups),
         titulo_pagina="Backup",
-        subtitulo_pagina="Guarde uma cópia dos seus dados",
+        subtitulo_pagina="Cópia protegida por senha",
         voltar_url=url_for("mais"),
         voltar_texto="Mais",
     )
@@ -1125,18 +1202,29 @@ def tela_backup():
 
 @app.route("/backup/criar", methods=["POST"])
 def criar_backup_web():
-    try:
-        backup.criar_backup()
-        flash("Backup criado. Toque em Baixar para guardar fora do celular.", "sucesso")
-    except Exception as erro:
-        flash(f"Não foi possível criar o backup: {erro}", "erro")
+    senha = request.form.get("senha", "")
+
+    if not senha_atual_confere(senha):
+        flash("Senha incorreta.", "erro")
+    elif seguranca.validar_senha(senha):
+        flash(
+            "Sua senha atual é curta ou fácil demais para proteger um backup. "
+            "Troque a senha em Mais → Alterar senha e tente de novo.",
+            "erro",
+        )
+    else:
+        try:
+            backup.criar_backup(senha)
+            flash("Backup protegido criado. Toque em Baixar para guardar fora do celular.", "sucesso")
+        except Exception as erro:
+            flash(f"Não foi possível criar o backup: {erro}", "erro")
 
     return redirect(url_for("tela_backup"))
 
 
 @app.route("/backup/baixar/<nome>")
 def baixar_backup(nome):
-    if not backup.nome_valido(nome):
+    if not backup.nome_valido(nome) or not nome.endswith(".mbk"):
         abort(404)
 
     return send_from_directory(
@@ -1147,20 +1235,43 @@ def baixar_backup(nome):
     )
 
 
+@app.route("/backup/excluir/<nome>", methods=["POST"])
+def excluir_backup_web(nome):
+    if not backup.excluir_backup(nome):
+        abort(404)
+
+    flash("Backup excluído do aparelho.", "sucesso")
+    return redirect(url_for("tela_backup"))
+
+
 @app.route("/backup/restaurar", methods=["POST"])
 def restaurar_backup_web():
     arquivo = request.files.get("arquivo")
+    senha_do_backup = request.form.get("senha_backup", "")
+    senha_atual = request.form.get("senha_atual", "")
 
     if arquivo is None or not arquivo.filename:
-        flash("Escolha o arquivo de backup (.db).", "erro")
+        flash("Escolha o arquivo de backup.", "erro")
         return redirect(url_for("tela_backup"))
 
-    descritor, caminho_temporario = tempfile.mkstemp(suffix=".db")
+    if not senha_atual_confere(senha_atual):
+        flash("A sua senha atual está incorreta.", "erro")
+        return redirect(url_for("tela_backup"))
+
+    if seguranca.validar_senha(senha_atual):
+        flash(
+            "Sua senha atual é curta ou fácil demais. Troque-a em Mais → Alterar senha "
+            "antes de restaurar (ela protege a cópia dos seus dados de agora).",
+            "erro",
+        )
+        return redirect(url_for("tela_backup"))
+
+    descritor, caminho_temporario = tempfile.mkstemp(suffix=".tmp")
     os.close(descritor)
 
     try:
         arquivo.save(caminho_temporario)
-        ok, resultado = backup.restaurar_de_arquivo(caminho_temporario)
+        ok, resultado = backup.restaurar_de_upload(caminho_temporario, senha_do_backup, senha_atual)
     finally:
         os.remove(caminho_temporario)
 
@@ -1170,8 +1281,100 @@ def restaurar_backup_web():
 
     # Os dados mudaram por inteiro (inclusive a senha): entra de novo.
     session.clear()
-    flash("Backup restaurado. Entre com a senha que você usava naquela cópia.", "sucesso")
+    flash(
+        "Backup restaurado. Entre com a senha que você usava quando fez aquela cópia. "
+        "Seus dados de antes ficaram guardados em Backup.",
+        "sucesso",
+    )
     return redirect(url_for("login"))
+
+
+# ==========================================
+# RELATÓRIO EM PDF
+# ==========================================
+
+def dados_do_relatorio(mes, ano):
+    hoje = date.today()
+    data_inicio, data_fim = limites_do_mes(mes, ano)
+    entradas, saidas = banco.totais_do_periodo(data_inicio, data_fim)
+
+    contas_do_mes = [
+        enriquecer_conta(c, hoje) for c in banco.listar_contas_do_periodo(data_inicio, data_fim)
+    ]
+
+    return {
+        "nome": session.get("nome", ""),
+        "mes": mes,
+        "ano": ano,
+        "gerado_em": datetime.now(),
+        "entradas": entradas,
+        "saidas": saidas,
+        "saldo_anterior": banco.saldo_ate(data_inicio),
+        "despesas_por_categoria": [
+            {"nome": g["nome"], "total": g["total"]}
+            for g in banco.gastos_por_categoria(data_inicio, data_fim)
+        ],
+        "receitas_por_categoria": [
+            {"nome": g["nome"], "total": g["total"]}
+            for g in banco.gastos_por_categoria(data_inicio, data_fim, tipo="receita")
+        ],
+        "orcamento": [
+            {"nome": o["nome"], "gasto": o["gasto"], "limite": o["limite"], "percentual": o["percentual"]}
+            for o in orcamento_do_periodo(data_inicio, data_fim)
+            if o["limite"]
+        ],
+        "contas": [
+            {
+                "vencimento": c["vencimento"],
+                "descricao": c["descricao_exibida"],
+                "valor": c["valor_exibido"],
+                "situacao": c["situacao"],
+                "rotulo": c["rotulo"],
+            }
+            for c in contas_do_mes
+        ],
+        "lancamentos": [
+            {
+                "data": l["data"],
+                "descricao": l["descricao"],
+                "categoria": l["categoria_nome"],
+                "tipo": l["tipo"],
+                "valor": l["valor_centavos"],
+            }
+            for l in reversed(banco.listar_lancamentos(data_inicio, data_fim))
+        ],
+    }
+
+
+@app.route("/relatorio")
+def tela_relatorio():
+    mes, ano = periodo()
+    data_inicio, data_fim = limites_do_mes(mes, ano)
+    entradas, saidas = banco.totais_do_periodo(data_inicio, data_fim)
+
+    return render_template(
+        "relatorio.html",
+        aba="mais",
+        endpoint_mes="tela_relatorio",
+        entradas=entradas,
+        saidas=saidas,
+        saldo_mes=entradas - saidas,
+        quantidade=len(banco.listar_lancamentos(data_inicio, data_fim)),
+        **dados_do_periodo(mes, ano),
+    )
+
+
+@app.route("/relatorio/pdf")
+def baixar_relatorio_pdf():
+    mes, ano = periodo()
+    pdf = relatorio.gerar_pdf(dados_do_relatorio(mes, ano))
+
+    return send_file(
+        BytesIO(pdf),
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=f"MeuBolso_{ano}-{mes:02d}.pdf",
+    )
 
 
 # ==========================================

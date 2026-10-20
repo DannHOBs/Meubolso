@@ -51,7 +51,7 @@ def contas_no_banco(**filtros):
 
 
 cliente = meubolso.app.test_client()
-cliente.post("/primeiro-acesso", data={"nome": "Dani", "senha": "1234", "confirmar": "1234"})
+cliente.post("/primeiro-acesso", data={"nome": "Dani", "senha": "Gato&Lua2026", "confirmar": "Gato&Lua2026"})
 
 hoje = date.today()
 mes_ano = {"mes": hoje.month, "ano": hoje.year}
@@ -173,10 +173,8 @@ html = texto(cliente.get("/orcamento", query_string={"mes": mes_passado[0], "ano
 conferir("o limite vale em todos os meses (mês passado, sem gasto)", "Restam R$ 500,00" in html)
 
 print("Bancos das versões anteriores")
-nome_backup = backup.criar_backup()
-caminho = os.path.join(os.environ["MEUBOLSO_BACKUPS"], nome_backup)
 antigo = os.path.join(pasta, "v2.db")
-shutil.copy(caminho, antigo)
+backup._copiar_banco_para(antigo)
 
 try:
     conexao = sqlite3.connect(antigo)
@@ -191,7 +189,7 @@ except sqlite3.OperationalError:
     print("  (pulado: este SQLite não consegue simular um banco antigo)")
 
 if preparou:
-    ok, _ = backup.restaurar_de_arquivo(antigo)
+    ok, _ = backup.restaurar_de_arquivo(antigo, "Gato&Lua2026")
     conexao = banco.conectar()
     tabelas = {l[0] for l in conexao.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
     colunas = {l["name"] for l in conexao.execute("PRAGMA table_info(contas)")}
@@ -200,7 +198,7 @@ if preparou:
     conferir("tabela de orçamento e colunas de parcela são criadas ao restaurar",
              "orcamentos" in tabelas and {"parcela_grupo", "parcela_numero", "parcela_total"} <= colunas)
 
-    cliente.post("/login", data={"senha": "1234"})
+    cliente.post("/login", data={"senha": "Gato&Lua2026"})
     r = cliente.get("/contas", query_string=mes_ano)
     conferir("as telas funcionam depois de restaurar um backup antigo", r.status_code == 200)
 

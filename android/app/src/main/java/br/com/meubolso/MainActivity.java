@@ -2,8 +2,10 @@ package br.com.meubolso;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.KeyguardManager;
 import android.content.ActivityNotFoundException;
 import android.content.ContentValues;
+import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
@@ -13,6 +15,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.CookieManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.JsResult;
 import android.webkit.URLUtil;
 import android.webkit.ValueCallback;
@@ -36,6 +39,7 @@ import java.net.HttpURLConnection;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.URL;
+import java.security.SecureRandom;
 
 /**
  * Tela única do Meu Bolso: sobe o servidor Flask (Python, via Chaquopy)
@@ -51,6 +55,10 @@ public class MainActivity extends Activity {
     private String enderecoBase;
 
     private static final int PEDIDO_ARQUIVO = 1001;
+    private static final int PEDIDO_BLOQUEIO = 1002;
+
+    // Código secreto desta execução do app (compartilhado só com o servidor Python).
+    private static volatile String tokenRapido = "";
     private ValueCallback<Uri[]> seletorArquivo;
 
     @Override
@@ -90,6 +98,9 @@ public class MainActivity extends Activity {
         ajustes.setDomStorageEnabled(true);
         ajustes.setAllowFileAccess(false);
         ajustes.setAllowContentAccess(false);
+
+        // Ponte usada pela tela de login para pedir o bloqueio do celular (desbloqueio rápido).
+        webView.addJavascriptInterface(new PonteAndroid(), "MeuBolsoAndroid");
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -161,9 +172,13 @@ public class MainActivity extends Activity {
 
                 copiarAssets("templates", templates);
 
+                String token = gerarToken();
+
                 Python.getInstance()
                         .getModule("android_main")
-                        .callAttr("iniciar", dados.getAbsolutePath(), templates.getAbsolutePath(), portaEscolhida);
+                        .callAttr("iniciar", dados.getAbsolutePath(), templates.getAbsolutePath(), portaEscolhida, token);
+
+                tokenRapido = token;
 
                 porta = portaEscolhida;
                 servidorPronto = true;
@@ -307,10 +322,68 @@ public class MainActivity extends Activity {
                 Toast.LENGTH_LONG).show();
     }
 
-    // ---------- resultado do seletor de arquivos ----------
+    // ---------- desbloqueio pelo bloqueio do celular ----------
+
+    private static String gerarToken() {
+        byte[] bytes = new byte[32];
+        new SecureRandom().nextBytes(bytes);
+
+        StringBuilder texto = new StringBuilder();
+        for (byte b : bytes) {
+            texto.append(String.format("%02x", b));
+        }
+        return texto.toString();
+    }
+
+    /** Funções que a página de login (HTML) pode chamar. Só páginas do próprio app são carregadas aqui. */
+    private class PonteAndroid {
+
+        @JavascriptInterface
+        public boolean disponivel() {
+            KeyguardManager gerenciador = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
+            return gerenciador != null && gerenciador.isDeviceSecure();
+        }
+
+        @JavascriptInterface
+        public void autenticar() {
+            runOnUiThread(() -> pedirBloqueioDoCelular());
+        }
+    }
+
+    private void pedirBloqueioDoCelular() {
+        KeyguardManager gerenciador = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
+
+        if (gerenciador == null || !gerenciador.isDeviceSecure()) {
+            Toast.makeText(this, "Configure um bloqueio de tela no celular para usar esta opção.", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        Intent pedido = gerenciador.createConfirmDeviceCredentialIntent(
+                "Meu Bolso", "Confirme que é você para abrir o app");
+
+        if (pedido == null) {
+            Toast.makeText(this, "Não foi possível pedir o bloqueio do celular.", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        try {
+            startActivityForResult(pedido, PEDIDO_BLOQUEIO);
+        } catch (ActivityNotFoundException semTela) {
+            Toast.makeText(this, "Não foi possível pedir o bloqueio do celular.", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    // ---------- resultado do seletor de arquivos e do bloqueio ----------
 
     @Override
     protected void onActivityResult(int pedido, int resultado, Intent dados) {
+        if (pedido == PEDIDO_BLOQUEIO) {
+            if (resultado == RESULT_OK && enderecoBase != null && !tokenRapido.isEmpty()) {
+                webView.loadUrl(enderecoBase + "entrada-rapida?t=" + tokenRapido);
+            }
+            return;
+        }
+
         if (pedido == PEDIDO_ARQUIVO && seletorArquivo != null) {
             seletorArquivo.onReceiveValue(
                     WebChromeClient.FileChooserParams.parseResult(resultado, dados));

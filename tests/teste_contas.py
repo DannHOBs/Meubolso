@@ -55,7 +55,7 @@ def total_lancamentos():
 
 
 cliente = meubolso.app.test_client()
-cliente.post("/primeiro-acesso", data={"nome": "Dani", "senha": "1234", "confirmar": "1234"})
+cliente.post("/primeiro-acesso", data={"nome": "Dani", "senha": "Gato&Lua2026", "confirmar": "Gato&Lua2026"})
 
 hoje = date.today()
 cat_moradia = next(c for c in banco.listar_categorias("despesa") if c["nome"] == "Moradia")
@@ -196,17 +196,15 @@ conferir("excluir recorrência remove contas em aberto e mantém as pagas",
          and all(c["paga"] for c in restantes if c["descricao"].startswith("Aluguel")))
 
 print("Backup da versão 1")
-nome_backup = backup.criar_backup()
-caminho = os.path.join(os.environ["MEUBOLSO_BACKUPS"], nome_backup)
 antigo = os.path.join(pasta, "v1.db")
-shutil.copy(caminho, antigo)
+backup._copiar_banco_para(antigo)
 conexao = sqlite3.connect(antigo)
 conexao.execute("DROP TABLE contas")
 conexao.execute("DROP TABLE recorrencias")
 conexao.commit()
 conexao.close()
 
-ok, mensagem = backup.restaurar_de_arquivo(antigo)
+ok, mensagem = backup.restaurar_de_arquivo(antigo, "Gato&Lua2026")
 conferir("backup feito antes da versão 2 é aceito", ok)
 conexao = banco.conectar()
 tabelas = {l[0] for l in conexao.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}

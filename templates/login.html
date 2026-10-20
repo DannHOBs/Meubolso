@@ -1,6 +1,39 @@
 {% extends "base.html" %}
 
 {% block conteudo %}
+
+{% if rapido_ativo %}
+    <div class="cartao" id="bloco-rapido" style="display: none; margin-top: 18px; text-align: center;">
+        <button type="button" class="botao botao-bloco botao-claro" id="botao-rapido">
+            🔓 Entrar com o bloqueio do celular
+        </button>
+        <div class="dica">Digital, rosto ou PIN do aparelho.</div>
+    </div>
+
+    <script>
+        (function () {
+            var ponte = window.MeuBolsoAndroid;
+
+            if (!ponte || !ponte.disponivel()) {
+                return;
+            }
+
+            document.getElementById('bloco-rapido').style.display = 'block';
+            document.getElementById('botao-rapido').addEventListener('click', function () {
+                ponte.autenticar();
+            });
+
+            // Pede automaticamente só na primeira vez que o app é aberto.
+            try {
+                if (!sessionStorage.getItem('rapido_tentado')) {
+                    sessionStorage.setItem('rapido_tentado', '1');
+                    ponte.autenticar();
+                }
+            } catch (erro) {}
+        })();
+    </script>
+{% endif %}
+
 <form method="post" class="cartao" autocomplete="off" style="margin-top: 18px;">
 
     <div class="campo">

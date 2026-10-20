@@ -11,6 +11,7 @@
     <a class="chip {{ 'ativo' if not tipo_filtro }}" href="{{ url_for('lancamentos', mes=mes, ano=ano) }}">Todos</a>
     <a class="chip {{ 'ativo' if tipo_filtro == 'receita' }}" href="{{ url_for('lancamentos', mes=mes, ano=ano, tipo='receita') }}">Receitas</a>
     <a class="chip {{ 'ativo' if tipo_filtro == 'despesa' }}" href="{{ url_for('lancamentos', mes=mes, ano=ano, tipo='despesa') }}">Despesas</a>
+    <a class="chip" href="{{ url_for('tela_relatorio', mes=mes, ano=ano) }}">📄 PDF</a>
 </div>
 
 <div class="cartao">

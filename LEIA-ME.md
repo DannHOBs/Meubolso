@@ -5,11 +5,11 @@ Mesma base do FINANCBETEL (Flask + SQLite + APK pelo GitHub), mas para uso pesso
 
 ## O que tem
 
-- Primeiro acesso: nome + senha. Senha pedida a cada abertura; bloqueio de 60 s após 3 erros; sai sozinho após 15 min parado.
+- Primeiro acesso: nome + senha (mínimo de 8 caracteres, sem senhas óbvias). Senha pedida a cada abertura; bloqueio de 60 s após 3 erros; sai sozinho após 15 min parado.
 - Início: saldo do mês, entradas, saídas, saldo acumulado, gastos por categoria e últimos lançamentos.
 - Lançamentos: adicionar receita/despesa (botão +), editar, excluir, filtrar por tipo, navegar entre meses.
 - Categorias: criar, renomear, trocar o ícone, ocultar (os lançamentos antigos continuam).
-- Backup: criar, baixar, restaurar a partir de um arquivo (para trocar de celular).
+- Backup protegido por senha (.mbk): criar, baixar, restaurar a partir de um arquivo (para trocar de celular).
 - Alterar senha.
 
 ### Novo na versão 2: contas a pagar
@@ -37,12 +37,33 @@ Mesma base do FINANCBETEL (Flask + SQLite + APK pelo GitHub), mas para uso pesso
 - Ajuste visual: os avisos agora são em bloco (links no meio do texto não quebram mais o layout) e
   "Contas recorrentes" ganhou o botão "➕ Nova conta recorrente".
 
+### Novo na versão 4: segurança e relatório
+
+- **Senha forte:** mínimo de 8 caracteres e sem senhas óbvias (12345678, aaaaaaaa, senha123...). Quem criou a conta nas versões
+  anteriores com senha curta continua entrando, mas o Início avisa para trocar (e o backup protegido só funciona com senha forte).
+- **Backup protegido por senha:** o arquivo `.mbk` é criptografado com a senha do app (scrypt + HMAC-SHA256, só biblioteca padrão
+  do Python) e detecta senha errada ou arquivo alterado. Para criar, é preciso digitar a senha. Quem pegar o arquivo não lê nada.
+  - Restaurar pede **duas senhas**: a do backup (a que o app tinha quando ele foi criado) e a atual (confirma e protege a cópia
+    de segurança dos dados de agora, feita automaticamente antes de restaurar).
+  - Backups antigos `.db` (sem proteção) ainda podem ser restaurados, mas o app não cria mais e não deixa baixar os que estão
+    guardados no aparelho: a tela de Backup avisa e permite excluir.
+- **Desbloqueio rápido (só no app Android):** Mais → Desbloqueio rápido. Em vez de digitar a senha, o app pede o bloqueio do celular
+  (digital, rosto, PIN ou padrão). Fica desligado até você ligar (pede a senha). A senha do app continua valendo para backups.
+  O Android passa ao servidor interno um código secreto novo a cada vez que o app é aberto; sem ele, outros aplicativos não
+  conseguem usar a entrada rápida.
+- **Relatório em PDF:** Mais → Relatório em PDF (ou o botão "📄 PDF" em Lançamentos). Escolha o mês e baixe: resumo, despesas e receitas
+  por categoria, orçamento, contas do mês e todos os lançamentos. O PDF não tem senha.
+- **Importante no GitHub:** o arquivo `.github/workflows/build-apk.yml` mudou (agora copia todos os `.py` da raiz, porque há
+  módulos novos: `seguranca.py` e `relatorio.py`). Substitua o workflow pelo da versão nova. Se esquecer, a conferência
+  automática avisa antes de gerar o APK.
+
 ## Testar no computador
 
     pip install -r requirements.txt
     python tests/teste_basico.py     # teste automático da versão 1 (usa banco temporário)
     python tests/teste_contas.py     # teste automático das contas e recorrências
     python tests/teste_orcamento_parcelas.py   # teste automático do orçamento e das parcelas
+    python tests/teste_seguranca_relatorio.py  # teste automático da segurança e do relatório PDF
     python app.py                    # abre em http://127.0.0.1:5000
 
 ## Gerar o APK
@@ -58,4 +79,5 @@ Python 3.13 está definido em `android/app/build.gradle` e no workflow; se mudar
 ## Ideias para as próximas versões
 
 - Cartão de crédito com fatura (fechamento e vencimento da fatura).
-- Relatório em PDF.
+- Token interno para todas as chamadas do servidor local (hoje só a entrada rápida usa).
+- Gráficos no Início e relatório do ano.

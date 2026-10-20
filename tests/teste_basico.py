@@ -42,9 +42,9 @@ r = cliente.get("/")
 conferir("sem usuário, '/' manda para o primeiro acesso", r.status_code == 302 and "primeiro-acesso" in r.location)
 
 r = cliente.post("/primeiro-acesso", data={"nome": "Dani", "senha": "123", "confirmar": "123"})
-conferir("senha curta é recusada", "pelo menos 4" in texto(r))
+conferir("senha curta é recusada", "pelo menos 8" in texto(r))
 
-r = cliente.post("/primeiro-acesso", data={"nome": "Dani", "senha": "1234", "confirmar": "1234"}, follow_redirects=True)
+r = cliente.post("/primeiro-acesso", data={"nome": "Dani", "senha": "Gato&Lua2026", "confirmar": "Gato&Lua2026"}, follow_redirects=True)
 conferir("cria usuário e entra no início", r.status_code == 200 and "Olá, Dani" in texto(r))
 
 cliente.get("/sair")
@@ -56,10 +56,10 @@ conferir("senha errada é recusada", "Senha incorreta" in texto(r))
 cliente.post("/login", data={"senha": "errada"})
 r = cliente.post("/login", data={"senha": "errada"})
 conferir("3 erros bloqueiam por um tempo", "Aguarde" in texto(r))
-r = cliente.post("/login", data={"senha": "1234"})
+r = cliente.post("/login", data={"senha": "Gato&Lua2026"})
 conferir("durante o bloqueio nem a senha certa entra", r.status_code == 200 and "Aguarde" in texto(r))
 meubolso._falhas_login.update(quantas=0, bloqueado_ate=0.0)
-r = cliente.post("/login", data={"senha": "1234"})
+r = cliente.post("/login", data={"senha": "Gato&Lua2026"})
 conferir("depois do bloqueio, a senha certa entra", r.status_code == 302)
 
 print("Lançamentos")
@@ -126,31 +126,80 @@ conferir("mas continua nos lançamentos antigos", "Pão" in texto(r))
 cliente.post(f"/categorias/{cat_mercado['id']}/alternar")
 
 print("Senha")
-r = cliente.post("/senha", data={"atual": "x", "nova": "abcd", "confirmar": "abcd"})
+NOVA = "Outra&Senha77"
+r = cliente.post("/senha", data={"atual": "x", "nova": NOVA, "confirmar": NOVA})
 conferir("troca de senha exige a atual", "senha atual está incorreta" in texto(r))
-r = cliente.post("/senha", data={"atual": "1234", "nova": "abcd", "confirmar": "abcd"}, follow_redirects=True)
+r = cliente.post("/senha", data={"atual": "Gato&Lua2026", "nova": "abcd", "confirmar": "abcd"})
+conferir("nova senha curta é recusada", "pelo menos 8" in texto(r))
+r = cliente.post("/senha", data={"atual": "Gato&Lua2026", "nova": "12345678", "confirmar": "12345678"})
+conferir("nova senha óbvia é recusada", "fácil de adivinhar" in texto(r))
+r = cliente.post("/senha", data={"atual": "Gato&Lua2026", "nova": NOVA, "confirmar": NOVA}, follow_redirects=True)
 conferir("troca a senha", "Senha alterada" in texto(r))
 
-print("Backup")
-cliente.post("/backup/criar")
+print("Backup protegido")
+r = cliente.post("/backup/criar", data={"senha": "errada"}, follow_redirects=True)
+conferir("backup exige a senha certa", "Senha incorreta" in texto(r) and not meubolso.backup.listar_backups())
+
+cliente.post("/backup/criar", data={"senha": NOVA})
 backups = meubolso.backup.listar_backups()
-conferir("cria backup", len(backups) == 1)
+conferir("cria backup protegido (.mbk)", len(backups) == 1 and backups[0]["protegido"] and backups[0]["nome"].endswith(".mbk"))
+
 r = cliente.get(f"/backup/baixar/{backups[0]['nome']}")
-conferir("baixa o backup", r.status_code == 200 and r.data[:15] == b"SQLite format 3")
+conferir("baixa o backup", r.status_code == 200 and r.data.startswith(meubolso.seguranca.MAGIA))
+conferir("o arquivo baixado não mostra nada legível",
+         b"SQLite format 3" not in r.data and "Salário".encode() not in r.data and b"Pao" not in r.data and "Pão".encode() not in r.data)
 r = cliente.get("/backup/baixar/../../etc/passwd")
 conferir("nome de arquivo malicioso é barrado", r.status_code == 404)
+
 with open(os.path.join(os.environ["MEUBOLSO_BACKUPS"], backups[0]["nome"]), "rb") as arquivo_backup:
     conteudo_backup = arquivo_backup.read()
 
 cliente.post("/novo/despesa", data={"valor": "99", "descricao": "Depois do backup", "categoria_id": cat_mercado["id"], "data": data_hoje})
 
-r = cliente.post("/backup/restaurar", data={"arquivo": (io.BytesIO(b"isto nao e um banco"), "lixo.db")}, content_type="multipart/form-data", follow_redirects=True)
-conferir("arquivo inválido é recusado", "backup" in texto(r).lower() and "Depois do backup" not in texto(r) and len(banco.listar_lancamentos("2000-01-01", "2100-01-01")) == 3)
 
-r = cliente.post("/backup/restaurar", data={"arquivo": (io.BytesIO(conteudo_backup), "meu.db")}, content_type="multipart/form-data", follow_redirects=True)
+def restaurar(conteudo, nome_arquivo="meu.mbk", senha_backup=NOVA, senha_atual=NOVA):
+    return cliente.post(
+        "/backup/restaurar",
+        data={"arquivo": (io.BytesIO(conteudo), nome_arquivo), "senha_backup": senha_backup, "senha_atual": senha_atual},
+        content_type="multipart/form-data",
+        follow_redirects=True,
+    )
+
+
+def tem_lancamento_depois():
+    return any(l["descricao"] == "Depois do backup" for l in banco.listar_lancamentos("2000-01-01", "2100-01-01"))
+
+
+r = restaurar(b"isto nao e um banco", "lixo.db")
+conferir("arquivo inválido é recusado", "não é um backup" in texto(r) and tem_lancamento_depois())
+r = restaurar(conteudo_backup, senha_backup="senha-errada-1")
+conferir("senha do backup errada é recusada", "incorreta" in texto(r) and tem_lancamento_depois())
+r = restaurar(conteudo_backup, senha_atual="outra-errada-1")
+conferir("senha atual errada é recusada", "senha atual está incorreta" in texto(r) and tem_lancamento_depois())
+adulterado = bytearray(conteudo_backup)
+adulterado[len(adulterado) // 2] ^= 1
+r = restaurar(bytes(adulterado))
+conferir("backup adulterado é recusado", "incorreta" in texto(r) and tem_lancamento_depois())
+
+r = restaurar(conteudo_backup)
 conferir("restaura backup válido e pede login", "Backup restaurado" in texto(r))
-conferir("lançamento feito depois do backup sumiu", all(l["descricao"] != "Depois do backup" for l in banco.listar_lancamentos("2000-01-01", "2100-01-01")))
-conferir("restauração guardou cópia de segurança", any("antes-de-restaurar" in b["nome"] for b in meubolso.backup.listar_backups()))
+conferir("lançamento feito depois do backup sumiu", not tem_lancamento_depois())
+copias = [b for b in meubolso.backup.listar_backups() if "antes-de-restaurar" in b["nome"]]
+conferir("restauração guardou cópia de segurança protegida", len(copias) == 1 and copias[0]["protegido"])
+r = cliente.post("/login", data={"senha": NOVA})
+conferir("depois de restaurar, entra com a senha da cópia", r.status_code == 302)
+
+r = cliente.post(f"/backup/excluir/{copias[0]['nome']}", follow_redirects=True)
+conferir("exclui backup do aparelho", "Backup excluído" in texto(r) and not any("antes-de" in b["nome"] for b in meubolso.backup.listar_backups()))
+
+print("Backup antigo (.db sem proteção)")
+antigo_plano = os.path.join(pasta, "antigo.db")
+meubolso.backup._copiar_banco_para(antigo_plano)
+with open(antigo_plano, "rb") as arquivo_antigo:
+    conteudo_antigo = arquivo_antigo.read()
+cliente.post("/novo/despesa", data={"valor": "99", "descricao": "Depois do backup", "categoria_id": cat_mercado["id"], "data": data_hoje})
+r = restaurar(conteudo_antigo, "antigo.db", senha_backup="")
+conferir("ainda restaura um .db antigo (sem senha do backup)", "Backup restaurado" in texto(r) and not tem_lancamento_depois())
 
 print()
 if falhas:

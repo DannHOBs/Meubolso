@@ -22,11 +22,28 @@
         <span class="seta-menu">›</span>
     </a>
 
+    <a class="linha-menu" href="{{ url_for('tela_relatorio') }}">
+        <div class="icone-redondo fundo-azul">📄</div>
+        <div class="texto"><strong>Relatório em PDF</strong><span class="sub">Resumo do mês para guardar ou imprimir</span></div>
+        <span class="seta-menu">›</span>
+    </a>
+
     <a class="linha-menu" href="{{ url_for('tela_backup') }}">
         <div class="icone-redondo fundo-verde">💾</div>
         <div class="texto"><strong>Backup</strong><span class="sub">Salvar e restaurar seus dados</span></div>
         <span class="seta-menu">›</span>
     </a>
+
+    {% if rapido_disponivel %}
+        <a class="linha-menu" href="{{ url_for('desbloqueio_rapido') }}">
+            <div class="icone-redondo fundo-verde">🔓</div>
+            <div class="texto">
+                <strong>Desbloqueio rápido</strong>
+                <span class="sub">{{ 'Ligado' if rapido_ativo else 'Desligado' }} · digital, rosto ou PIN do celular</span>
+            </div>
+            <span class="seta-menu">›</span>
+        </a>
+    {% endif %}
 
     <a class="linha-menu" href="{{ url_for('alterar_senha') }}">
         <div class="icone-redondo fundo-ambar">🔑</div>

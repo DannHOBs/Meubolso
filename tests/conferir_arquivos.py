@@ -47,11 +47,53 @@ for arquivo in sorted(pasta_templates.glob("*.html")):
         if endpoint not in endpoints:
             erros.append(f"{arquivo.name} usa url_for('{endpoint}'), mas o app.py não tem essa rota")
 
+# 5) módulos .py do projeto que o sistema usa: precisam existir e ser copiados para o APK
+if hasattr(sys, "stdlib_module_names"):
+    DE_FORA = {"flask", "werkzeug", "reportlab", "jinja2", "build_info"}
+    modulos_do_projeto = set()
+    fila, vistos = ["app"], set()
+
+    while fila:
+        nome = fila.pop()
+
+        if nome in vistos:
+            continue
+
+        vistos.add(nome)
+        texto_py = (RAIZ / f"{nome}.py").read_text(encoding="utf-8")
+
+        for modulo in set(re.findall(r"^\s*(?:import|from)\s+(\w+)", texto_py, re.M)):
+            if modulo in sys.stdlib_module_names or modulo in DE_FORA:
+                continue
+
+            if (RAIZ / f"{modulo}.py").exists():
+                modulos_do_projeto.add(modulo)
+                fila.append(modulo)
+            else:
+                erros.append(f"{nome}.py usa '{modulo}', mas o arquivo {modulo}.py não está na raiz do projeto")
+
+    fluxo = RAIZ / ".github" / "workflows" / "build-apk.yml"
+
+    if fluxo.exists():
+        linhas_cp = [
+            linha for linha in fluxo.read_text(encoding="utf-8").splitlines()
+            if re.search(r"\bcp\b", linha) and "src/main/python" in linha
+        ]
+        texto_cp = " ".join(linhas_cp)
+
+        if "*.py" not in texto_cp:
+            for modulo in sorted(modulos_do_projeto | {"app"}):
+                if f"{modulo}.py" not in texto_cp:
+                    erros.append(
+                        f".github/workflows/build-apk.yml não copia '{modulo}.py' para o APK. "
+                        "Use o arquivo build-apk.yml da versão nova (ele copia todos os .py)"
+                    )
+
 if erros:
     print("ARQUIVOS INCOMPATÍVEIS ENTRE SI:")
     for e in sorted(set(erros)):
         print("  -", e)
-    print("\nConfira se app.py e a pasta templates foram enviados juntos, da mesma versão.")
+    print("\nConfira se todos os arquivos (app.py, os outros .py, templates e o workflow) foram enviados juntos, da mesma versão.")
     sys.exit(1)
 
 print(f"OK: {len(templates_existentes)} templates e {len(endpoints) - 1} funções conferidos, sem incompatibilidades.")

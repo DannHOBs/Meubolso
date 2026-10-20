@@ -135,6 +135,14 @@ def criar_banco():
         )
     """)
 
+    # Versão 4: configurações simples (desbloqueio rápido, aviso de senha curta...).
+    conexao.execute("""
+        CREATE TABLE IF NOT EXISTS config (
+            chave TEXT PRIMARY KEY,
+            valor TEXT NOT NULL
+        )
+    """)
+
     # Categorias iniciais: só na primeira vez (banco novo, sem nenhuma categoria).
     total = conexao.execute("SELECT COUNT(*) FROM categorias").fetchone()[0]
 
@@ -385,18 +393,19 @@ def saldo_ate(data_limite):
     return linha["saldo"]
 
 
-def gastos_por_categoria(data_inicio, data_fim):
+def gastos_por_categoria(data_inicio, data_fim, tipo="despesa"):
+    """Total por categoria no período (despesas por padrão; use tipo='receita' para receitas)."""
     conexao = conectar()
     gastos = conexao.execute(
         """
         SELECT c.nome, c.icone, SUM(l.valor_centavos) AS total
         FROM lancamentos l
         JOIN categorias c ON c.id = l.categoria_id
-        WHERE l.tipo = 'despesa' AND l.data >= ? AND l.data < ?
+        WHERE l.tipo = ? AND l.data >= ? AND l.data < ?
         GROUP BY c.id
         ORDER BY total DESC
         """,
-        (data_inicio, data_fim),
+        (tipo, data_inicio, data_fim),
     ).fetchall()
     conexao.close()
     return gastos
@@ -903,5 +912,29 @@ def definir_orcamento(categoria_id, limite_centavos):
             (categoria_id, limite_centavos),
         )
 
+    conexao.commit()
+    conexao.close()
+
+
+# ==========================================
+# CONFIGURAÇÕES
+# ==========================================
+
+def obter_config(chave, padrao=None):
+    conexao = conectar()
+    linha = conexao.execute("SELECT valor FROM config WHERE chave = ?", (chave,)).fetchone()
+    conexao.close()
+    return linha["valor"] if linha else padrao
+
+
+def definir_config(chave, valor):
+    conexao = conectar()
+    conexao.execute(
+        """
+        INSERT INTO config (chave, valor) VALUES (?, ?)
+        ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor
+        """,
+        (chave, str(valor)),
+    )
     conexao.commit()
     conexao.close()
