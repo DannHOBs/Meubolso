@@ -1,24 +1,25 @@
 name: Gerar APK
 
 on:
+  # Botão "Run workflow" na aba Actions
   workflow_dispatch:
+  # Também gera sozinho quando o código do sistema ou do app muda
   push:
     branches: [ main ]
     paths:
       - "android/**"
-      - "app.py"
-      - "banco.py"
-      - "backup.py"
+      - "*.py"
       - "templates/**"
       - ".github/workflows/build-apk.yml"
 
+# Só o envio mais recente gera APK (evita APK de um envio pela metade)
 concurrency:
   group: gerar-apk
   cancel-in-progress: true
 
 jobs:
   apk:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 40
 
     steps:
@@ -26,11 +27,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Instalar Java 17
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
+      # Precisa ser a mesma versão de Python configurada em android/app/build.gradle
       - name: Instalar Python 3.13
         uses: actions/setup-python@v5
         with:
@@ -42,7 +44,7 @@ jobs:
       - name: Copiar o sistema para dentro do projeto Android
         run: |
           mkdir -p android/app/src/main/python android/app/src/main/assets
-          cp app.py banco.py backup.py android/app/src/main/python/
+          cp *.py android/app/src/main/python/
           rm -rf android/app/src/main/assets/templates
           cp -r templates android/app/src/main/assets/templates
           echo "COMMIT = \"${GITHUB_SHA::7}\"" > android/app/src/main/python/build_info.py
