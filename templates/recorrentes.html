@@ -2,9 +2,12 @@
 
 {% block conteudo %}
 
+<a class="botao botao-bloco" href="{{ url_for('conta_nova', repete=1) }}" style="margin-bottom: 14px;">
+    ➕ Nova conta recorrente
+</a>
+
 <div class="alerta">
-    ℹ️ As contas do mês seguinte são criadas sozinhas. Para criar uma recorrente, cadastre uma
-    <a href="{{ url_for('conta_nova') }}"><strong>nova conta</strong></a> e marque "Repetir todo mês".
+    ℹ️ As contas dos meses seguintes são criadas sozinhas, sempre no mesmo dia.
 </div>
 
 <div class="cartao">

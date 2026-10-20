@@ -7,6 +7,7 @@ para evitar erros de arredondamento. As datas são guardadas como AAAA-MM-DD.
 import calendar
 import os
 import sqlite3
+import uuid
 
 NOME_BANCO = os.getenv("MEUBOLSO_DB", "meubolso.db")
 
@@ -101,6 +102,9 @@ def criar_banco():
             paga INTEGER NOT NULL DEFAULT 0,
             lancamento_id INTEGER,
             recorrencia_id INTEGER,
+            parcela_grupo TEXT,
+            parcela_numero INTEGER,
+            parcela_total INTEGER,
             FOREIGN KEY (categoria_id) REFERENCES categorias (id),
             FOREIGN KEY (lancamento_id) REFERENCES lancamentos (id) ON DELETE SET NULL,
             FOREIGN KEY (recorrencia_id) REFERENCES recorrencias (id) ON DELETE SET NULL
@@ -110,6 +114,26 @@ def criar_banco():
     conexao.execute(
         "CREATE INDEX IF NOT EXISTS idx_contas_vencimento ON contas (vencimento)"
     )
+
+    # Versão 3: bancos criados nas versões 1 e 2 ganham as colunas de parcela.
+    colunas = {linha["name"] for linha in conexao.execute("PRAGMA table_info(contas)")}
+
+    for coluna, tipo in (
+        ("parcela_grupo", "TEXT"),
+        ("parcela_numero", "INTEGER"),
+        ("parcela_total", "INTEGER"),
+    ):
+        if coluna not in colunas:
+            conexao.execute(f"ALTER TABLE contas ADD COLUMN {coluna} {tipo}")
+
+    # Versão 3: limite mensal de gastos por categoria.
+    conexao.execute("""
+        CREATE TABLE IF NOT EXISTS orcamentos (
+            categoria_id INTEGER PRIMARY KEY,
+            limite_centavos INTEGER NOT NULL CHECK (limite_centavos > 0),
+            FOREIGN KEY (categoria_id) REFERENCES categorias (id)
+        )
+    """)
 
     # Categorias iniciais: só na primeira vez (banco novo, sem nenhuma categoria).
     total = conexao.execute("SELECT COUNT(*) FROM categorias").fetchone()[0]
@@ -399,6 +423,10 @@ def proximo_mes(ano, mes):
 _COLUNAS_CONTA = """
     c.id, c.descricao, c.valor_centavos, c.categoria_id, c.vencimento,
     c.paga, c.lancamento_id, c.recorrencia_id,
+    c.parcela_grupo, c.parcela_numero, c.parcela_total,
+    CASE WHEN c.parcela_total IS NOT NULL
+         THEN c.descricao || ' (' || c.parcela_numero || '/' || c.parcela_total || ')'
+         ELSE c.descricao END AS descricao_exibida,
     cat.nome AS categoria_nome, cat.icone AS categoria_icone,
     l.data AS data_pagamento,
     COALESCE(l.valor_centavos, c.valor_centavos) AS valor_exibido
@@ -535,7 +563,13 @@ def pagar_conta(id_conta, data_pagamento):
 
     try:
         conta = conexao.execute(
-            "SELECT descricao, valor_centavos, categoria_id FROM contas WHERE id = ? AND paga = 0",
+            """
+            SELECT valor_centavos, categoria_id,
+                   CASE WHEN parcela_total IS NOT NULL
+                        THEN descricao || ' (' || parcela_numero || '/' || parcela_total || ')'
+                        ELSE descricao END AS descricao
+            FROM contas WHERE id = ? AND paga = 0
+            """,
             (id_conta,),
         ).fetchone()
 
@@ -748,3 +782,126 @@ def gerar_recorrentes(hoje, ate_ano, ate_mes):
         conexao.commit()
     finally:
         conexao.close()
+
+
+# ==========================================
+# COMPRAS PARCELADAS
+# ==========================================
+
+def dividir_valor(total_centavos, parcelas):
+    """Divide o total em parcelas; os centavos que sobram vão para as primeiras."""
+    base, resto = divmod(total_centavos, parcelas)
+    return [base + 1 if i < resto else base for i in range(parcelas)]
+
+
+def gerar_vencimentos(primeiro_vencimento, quantidade):
+    """Um vencimento por mês, sempre no mesmo dia (ou no último dia de meses curtos)."""
+    ano, mes, dia = (int(parte) for parte in primeiro_vencimento.split("-"))
+    vencimentos = []
+
+    for _ in range(quantidade):
+        vencimentos.append(data_do_mes(ano, mes, dia))
+        ano, mes = proximo_mes(ano, mes)
+
+    return vencimentos
+
+
+def adicionar_parcelas(descricao, valores, categoria_id, vencimentos):
+    """Cria uma conta por parcela, ligadas entre si. Devolve os ids criados."""
+    grupo = uuid.uuid4().hex
+    total = len(valores)
+    ids = []
+
+    conexao = conectar()
+
+    try:
+        for numero, (valor, vencimento) in enumerate(zip(valores, vencimentos), start=1):
+            cursor = conexao.execute(
+                """
+                INSERT INTO contas (descricao, valor_centavos, categoria_id, vencimento,
+                                    parcela_grupo, parcela_numero, parcela_total)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (descricao, valor, categoria_id, vencimento, grupo, numero, total),
+            )
+            ids.append(cursor.lastrowid)
+
+        conexao.commit()
+    finally:
+        conexao.close()
+
+    return ids
+
+
+def excluir_parcelas_em_aberto(id_conta):
+    """Exclui todas as parcelas ainda não pagas da mesma compra. Devolve quantas excluiu."""
+    conexao = conectar()
+
+    try:
+        conta = conexao.execute(
+            "SELECT parcela_grupo FROM contas WHERE id = ?", (id_conta,)
+        ).fetchone()
+
+        if conta is None or not conta["parcela_grupo"]:
+            return 0
+
+        apagadas = conexao.execute(
+            "DELETE FROM contas WHERE parcela_grupo = ? AND paga = 0",
+            (conta["parcela_grupo"],),
+        ).rowcount
+
+        conexao.commit()
+        return apagadas
+    finally:
+        conexao.close()
+
+
+# ==========================================
+# ORÇAMENTO (limite mensal por categoria)
+# ==========================================
+
+def listar_orcamento(data_inicio, data_fim):
+    """Categorias de despesa com o gasto do período, as contas em aberto e o limite (se houver)."""
+    conexao = conectar()
+    linhas = conexao.execute(
+        """
+        SELECT
+            cat.id, cat.nome, cat.icone, o.limite_centavos,
+            COALESCE((
+                SELECT SUM(l.valor_centavos) FROM lancamentos l
+                WHERE l.categoria_id = cat.id AND l.tipo = 'despesa'
+                  AND l.data >= ? AND l.data < ?
+            ), 0) AS gasto,
+            COALESCE((
+                SELECT SUM(c.valor_centavos) FROM contas c
+                WHERE c.categoria_id = cat.id AND c.paga = 0
+                  AND c.vencimento >= ? AND c.vencimento < ?
+            ), 0) AS em_aberto
+        FROM categorias cat
+        LEFT JOIN orcamentos o ON o.categoria_id = cat.id
+        WHERE cat.tipo = 'despesa' AND (cat.ativa = 1 OR o.limite_centavos IS NOT NULL)
+        ORDER BY cat.nome COLLATE NOCASE
+        """,
+        (data_inicio, data_fim, data_inicio, data_fim),
+    ).fetchall()
+    conexao.close()
+    return linhas
+
+
+def definir_orcamento(categoria_id, limite_centavos):
+    """Define o limite mensal da categoria; com None, remove o limite."""
+    conexao = conectar()
+
+    if limite_centavos is None:
+        conexao.execute("DELETE FROM orcamentos WHERE categoria_id = ?", (categoria_id,))
+    else:
+        conexao.execute(
+            """
+            INSERT INTO orcamentos (categoria_id, limite_centavos) VALUES (?, ?)
+            ON CONFLICT(categoria_id) DO UPDATE SET limite_centavos = excluded.limite_centavos
+            """,
+            (categoria_id, limite_centavos),
+        )
+
+    conexao.commit()
+    conexao.close()

@@ -323,6 +323,7 @@ def inicio():
     hoje = date.today()
     garantir_recorrentes(hoje)
     n_atrasadas, total_atrasadas = banco.resumo_atrasadas(hoje.isoformat())
+    itens_orcamento = orcamento_do_periodo(data_inicio, data_fim)
 
     return render_template(
         "inicio.html",
@@ -335,6 +336,8 @@ def inicio():
         ],
         n_atrasadas=n_atrasadas,
         total_atrasadas=total_atrasadas,
+        orcamento_alertas=[o for o in itens_orcamento if o["limite"] and o["situacao"] != "ok"][:3],
+        tem_orcamento=any(o["limite"] for o in itens_orcamento),
         entradas=entradas,
         saidas=saidas,
         saldo_mes=entradas - saidas,
@@ -691,36 +694,79 @@ def voltar_para_contas(vencimento):
     return redirect(url_for("contas", **mes_do_lancamento(vencimento)))
 
 
+def criar_contas_do_formulario(dados):
+    """Cria a conta (única, recorrente ou parcelada). Devolve (mensagem_de_sucesso, mensagem_de_erro)."""
+    repete = bool(request.form.get("repete"))
+
+    try:
+        parcelas = int(request.form.get("parcelas") or 1)
+    except ValueError:
+        parcelas = 0
+
+    if not 1 <= parcelas <= 60:
+        return None, "O número de parcelas deve ficar entre 1 e 60."
+
+    if repete and parcelas > 1:
+        return None, "Escolha só uma opção: repetir todo mês OU parcelar."
+
+    if repete:
+        banco.adicionar_conta_recorrente(
+            dados["descricao"], dados["valor"], dados["categoria_id"], dados["vencimento"]
+        )
+        return "Conta criada. Ela vai se repetir todo mês.", None
+
+    if parcelas == 1:
+        banco.adicionar_conta(
+            dados["descricao"], dados["valor"], dados["categoria_id"], dados["vencimento"]
+        )
+        return "Conta criada.", None
+
+    if request.form.get("valor_tipo") == "total":
+        if dados["valor"] < parcelas:
+            return None, "O total é pequeno demais para esse número de parcelas."
+        valores = banco.dividir_valor(dados["valor"], parcelas)
+    else:
+        valores = [dados["valor"]] * parcelas
+
+    vencimentos = banco.gerar_vencimentos(dados["vencimento"], parcelas)
+    banco.adicionar_parcelas(dados["descricao"], valores, dados["categoria_id"], vencimentos)
+
+    return (
+        f"Compra parcelada: {parcelas} contas criadas, de {formatar_data(vencimentos[0])} "
+        f"a {formatar_data(vencimentos[-1])}.",
+        None,
+    )
+
+
 @app.route("/contas/nova", methods=["GET", "POST"])
 def conta_nova():
     if request.method == "POST":
         dados, erro = ler_formulario_conta()
+        sucesso = None
+
+        if not erro:
+            sucesso, erro = criar_contas_do_formulario(dados)
 
         if erro:
             flash(erro, "erro")
         else:
-            if request.form.get("repete"):
-                banco.adicionar_conta_recorrente(
-                    dados["descricao"], dados["valor"], dados["categoria_id"], dados["vencimento"]
-                )
-                flash("Conta criada. Ela vai se repetir todo mês.", "sucesso")
-            else:
-                banco.adicionar_conta(
-                    dados["descricao"], dados["valor"], dados["categoria_id"], dados["vencimento"]
-                )
-                flash("Conta criada.", "sucesso")
-
+            flash(sucesso, "sucesso")
             return voltar_para_contas(dados["vencimento"])
+
+    if request.method == "POST":
+        form = request.form
+    else:
+        form = {"vencimento": date.today().isoformat(), "repete": request.args.get("repete")}
 
     return render_template(
         "conta_form.html",
         aba="contas",
         editando=False,
         categorias=banco.listar_categorias("despesa"),
-        form=request.form if request.method == "POST" else {"vencimento": date.today().isoformat()},
-        titulo_pagina="Nova conta",
-        voltar_url=url_for("contas"),
-        voltar_texto="Contas",
+        form=form,
+        titulo_pagina="Nova conta recorrente" if form.get("repete") else "Nova conta",
+        voltar_url=url_for("recorrentes") if request.args.get("repete") else url_for("contas"),
+        voltar_texto="Recorrentes" if request.args.get("repete") else "Contas",
     )
 
 
@@ -767,6 +813,8 @@ def conta_editar(id_conta):
         editando=True,
         id_conta=id_conta,
         faz_parte_de_recorrencia=bool(conta["recorrencia_id"]),
+        parcela_numero=conta["parcela_numero"],
+        parcela_total=conta["parcela_total"],
         categorias=categorias,
         form=form,
         titulo_pagina="Editar conta",
@@ -786,6 +834,23 @@ def conta_excluir(id_conta):
         flash("Conta excluída.", "sucesso")
     else:
         flash("Conta paga não pode ser excluída. Desfaça o pagamento primeiro.", "aviso")
+
+    return voltar_para_contas(conta["vencimento"])
+
+
+@app.route("/contas/<int:id_conta>/excluir-parcelas", methods=["POST"])
+def conta_excluir_parcelas(id_conta):
+    conta = banco.buscar_conta(id_conta)
+
+    if conta is None:
+        abort(404)
+
+    apagadas = banco.excluir_parcelas_em_aberto(id_conta)
+
+    if apagadas:
+        flash(f"{apagadas} parcela(s) em aberto excluída(s). As já pagas continuam no histórico.", "sucesso")
+    else:
+        flash("Essa conta não é uma compra parcelada.", "aviso")
 
     return voltar_para_contas(conta["vencimento"])
 
@@ -933,6 +998,97 @@ def recorrente_excluir(id_recorrencia):
     banco.excluir_recorrencia(id_recorrencia)
     flash("Recorrência excluída, junto com as contas dela que estavam em aberto.", "sucesso")
     return redirect(url_for("recorrentes"))
+
+
+# ==========================================
+# ORÇAMENTO (limite mensal por categoria)
+# ==========================================
+
+def orcamento_do_periodo(data_inicio, data_fim):
+    """Categorias com gasto, limite, porcentagem e situação (ok, atenção ou estourado)."""
+    itens = []
+
+    for linha in banco.listar_orcamento(data_inicio, data_fim):
+        item = dict(linha)
+        limite = linha["limite_centavos"]
+        item["limite"] = limite
+        item["previsto"] = linha["gasto"] + linha["em_aberto"]
+
+        if limite:
+            percentual = round(linha["gasto"] * 100 / limite)
+            item["percentual"] = percentual
+            item["largura"] = min(percentual, 100)
+            item["restante"] = limite - linha["gasto"]
+
+            if linha["gasto"] > limite:
+                item["situacao"] = "estourado"
+            elif percentual >= 80:
+                item["situacao"] = "atencao"
+            else:
+                item["situacao"] = "ok"
+        else:
+            item["situacao"] = "sem_limite"
+
+        itens.append(item)
+
+    # Com limite primeiro (os mais apertados no topo); depois as sem limite, com mais gasto antes.
+    itens.sort(key=lambda i: (
+        i["limite"] is None,
+        -(i.get("percentual") or 0),
+        -i["gasto"],
+        i["nome"].lower(),
+    ))
+
+    return itens
+
+
+@app.route("/orcamento")
+def orcamento():
+    mes, ano = periodo()
+    data_inicio, data_fim = limites_do_mes(mes, ano)
+    itens = orcamento_do_periodo(data_inicio, data_fim)
+    com_limite = [i for i in itens if i["limite"]]
+
+    return render_template(
+        "orcamento.html",
+        aba="mais",
+        endpoint_mes="orcamento",
+        itens=itens,
+        total_limite=sum(i["limite"] for i in com_limite),
+        total_gasto=sum(i["gasto"] for i in com_limite),
+        **dados_do_periodo(mes, ano),
+    )
+
+
+@app.route("/orcamento/<int:id_categoria>/definir", methods=["POST"])
+def orcamento_definir(id_categoria):
+    categoria = banco.buscar_categoria(id_categoria)
+
+    if categoria is None or categoria["tipo"] != "despesa":
+        abort(404)
+
+    destino = {}
+
+    try:
+        destino = {"mes": int(request.form.get("mes", "")), "ano": int(request.form.get("ano", ""))}
+    except ValueError:
+        pass
+
+    texto = request.form.get("limite", "").strip()
+
+    if request.form.get("acao") == "remover" or not texto:
+        banco.definir_orcamento(id_categoria, None)
+        flash(f"Limite de {categoria['nome']} removido.", "sucesso")
+    else:
+        limite = ler_valor(texto)
+
+        if limite is None:
+            flash("Informe um valor maior que zero. Exemplo: 800,00", "erro")
+        else:
+            banco.definir_orcamento(id_categoria, limite)
+            flash(f"Limite mensal de {categoria['nome']}: {formatar_moeda(limite)}.", "sucesso")
+
+    return redirect(url_for("orcamento", **destino))
 
 
 # ==========================================

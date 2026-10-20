@@ -11,8 +11,8 @@ android {
         applicationId "br.com.meubolso"
         minSdk 29
         targetSdk 34
-        versionCode 2
-        versionName "2.0"
+        versionCode 3
+        versionName "3.0"
 
         ndk {
             // Celulares atuais (64 bits). Python 3.13 não suporta 32 bits.

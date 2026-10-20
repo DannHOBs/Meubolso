@@ -5,7 +5,13 @@
 {% if editando and faz_parte_de_recorrencia %}
     <div class="alerta">
         🔁 Esta conta faz parte de uma recorrência. Alterar aqui muda só esta conta.
-        Para mudar todas, use <a href="{{ url_for('recorrentes') }}"><strong>Contas recorrentes</strong></a>.
+        Para mudar todas, vá em Mais → Contas recorrentes.
+    </div>
+{% endif %}
+
+{% if editando and parcela_total %}
+    <div class="alerta">
+        🧾 Esta é a parcela {{ parcela_numero }} de {{ parcela_total }}. Alterar aqui muda só esta parcela.
     </div>
 {% endif %}
 
@@ -42,6 +48,21 @@
 
     {% if not editando %}
         <div class="campo">
+            <label for="parcelas">Parcelas</label>
+            <input type="number" id="parcelas" name="parcelas" min="1" max="60" inputmode="numeric"
+                   value="{{ form.get('parcelas', 1) }}">
+            <div class="dica">1 = conta única. Acima de 1, criamos uma conta por mês, sempre no mesmo dia.</div>
+        </div>
+
+        <div class="campo">
+            <label for="valor_tipo">Quando parcelar, o valor acima é...</label>
+            <select id="valor_tipo" name="valor_tipo">
+                <option value="parcela" {% if form.get('valor_tipo') != 'total' %}selected{% endif %}>o valor de cada parcela</option>
+                <option value="total" {% if form.get('valor_tipo') == 'total' %}selected{% endif %}>o total da compra (dividimos)</option>
+            </select>
+        </div>
+
+        <div class="campo">
             <label style="display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600;">
                 <input type="checkbox" name="repete" value="1" {% if form.get('repete') %}checked{% endif %}
                        style="width: 22px; height: 22px;">
@@ -60,6 +81,14 @@
           onsubmit="return confirm('Excluir esta conta?');">
         <button type="submit" class="botao botao-cinza botao-bloco">Excluir conta</button>
     </form>
+
+    {% if parcela_total %}
+        <form method="post" action="{{ url_for('conta_excluir_parcelas', id_conta=id_conta) }}"
+              onsubmit="return confirm('Excluir TODAS as parcelas desta compra que ainda estão em aberto? As já pagas continuam no histórico.');"
+              style="margin-top: 10px;">
+            <button type="submit" class="botao botao-cinza botao-bloco">Excluir todas as parcelas em aberto</button>
+        </form>
+    {% endif %}
 {% endif %}
 
 {% endblock %}

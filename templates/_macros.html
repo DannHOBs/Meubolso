@@ -40,7 +40,7 @@
         </div>
 
         <div class="item-corpo">
-            <div class="item-titulo">{{ c.descricao }}{% if c.recorrencia_id %} 🔁{% endif %}</div>
+            <div class="item-titulo">{{ c.descricao_exibida }}{% if c.recorrencia_id %} 🔁{% endif %}</div>
             <div class="item-sub">{{ c.categoria_nome }} · vence {{ c.vencimento|data_br }}</div>
             <div style="margin-top: 5px;"><span class="selo {{ selos[c.situacao] }}">{{ c.rotulo }}</span></div>
         </div>
@@ -65,5 +65,30 @@
             </div>
         {% endif %}
 
+    </div>
+{% endmacro %}
+
+
+{% macro barra_orcamento(o) %}
+    {% set cores = {'ok': '#16a34a', 'atencao': '#f59e0b', 'estourado': '#ef4444'} %}
+
+    <div class="categoria-linha">
+        <div class="categoria-topo">
+            <span>{{ o.icone }} {{ o.nome }}</span>
+            <strong>{{ o.gasto|moeda }} <span class="rotulo-pequeno">de {{ o.limite|moeda }}</span></strong>
+        </div>
+
+        <div class="barra-cat">
+            <span style="width: {{ o.largura }}%; background: {{ cores[o.situacao] }};"></span>
+        </div>
+
+        <div class="dica" style="margin-top: 4px;">
+            {% if o.situacao == 'estourado' %}
+                <strong style="color: #b91c1c;">Passou {{ (-o.restante)|moeda }}</strong> do limite ({{ o.percentual }}%)
+            {% else %}
+                Restam {{ o.restante|moeda }} ({{ o.percentual }}% usado)
+            {% endif %}
+            {% if o.em_aberto %} · com contas em aberto: {{ o.previsto|moeda }}{% endif %}
+        </div>
     </div>
 {% endmacro %}

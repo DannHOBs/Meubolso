@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import item, conta %}
+{% from "_macros.html" import item, conta, barra_orcamento %}
 
 {% block topo %}
     {% set saudacao = "Olá, " ~ nome ~ "!" %}
@@ -56,6 +56,24 @@
             </div>
         {% endfor %}
     </div>
+
+    {% if tem_orcamento %}
+        <div class="cartao">
+            <div class="cartao-cabecalho">
+                <h2>Orçamento do mês</h2>
+                <a class="botao botao-claro botao-pequeno" href="{{ url_for('orcamento', mes=mes, ano=ano) }}">Ver tudo</a>
+            </div>
+
+            {% for o in orcamento_alertas %}
+                {{ barra_orcamento(o) }}
+            {% else %}
+                <div class="vazio" style="padding: 14px 10px;">
+                    <span class="grande">🎯</span>
+                    Tudo dentro dos limites até agora.
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
 
     <div class="cartao">
         <h2>Para onde foi o dinheiro</h2>

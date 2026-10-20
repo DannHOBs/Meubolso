@@ -24,11 +24,25 @@ Mesma base do FINANCBETEL (Flask + SQLite + APK pelo GitHub), mas para uso pesso
 - Conta paga não pode ser editada nem excluída: desfaça o pagamento antes.
 - Backups feitos na versão 1 continuam funcionando (as tabelas novas são criadas ao restaurar).
 
+### Novo na versão 3: orçamento e compras parceladas
+
+- **Mais → Orçamento**: defina um limite mensal por categoria de despesa. Cada categoria mostra uma barra
+  (verde, âmbar a partir de 80%, vermelha ao passar do limite), quanto resta ou quanto passou, e o "previsto"
+  somando as contas ainda em aberto. O limite vale para todos os meses. Campo em branco ou "Remover" tira o limite.
+- **Início**: cartão "Orçamento do mês" destacando as categorias em atenção ou estouradas (só aparece se houver limites).
+- **Parcelar**: ao criar uma conta, informe o número de parcelas (2 a 60) e diga se o valor é de cada parcela ou o total
+  (nesse caso dividimos, e os centavos que sobram vão para as primeiras). Uma conta por mês, com nome "Celular (3/10)".
+  Ao pagar, o lançamento leva o mesmo nome. Na edição de uma parcela dá para excluir todas as que estão em aberto.
+- Não dá para repetir todo mês e parcelar na mesma conta (escolha uma das duas).
+- Ajuste visual: os avisos agora são em bloco (links no meio do texto não quebram mais o layout) e
+  "Contas recorrentes" ganhou o botão "➕ Nova conta recorrente".
+
 ## Testar no computador
 
     pip install -r requirements.txt
     python tests/teste_basico.py     # teste automático da versão 1 (usa banco temporário)
     python tests/teste_contas.py     # teste automático das contas e recorrências
+    python tests/teste_orcamento_parcelas.py   # teste automático do orçamento e das parcelas
     python app.py                    # abre em http://127.0.0.1:5000
 
 ## Gerar o APK
@@ -43,6 +57,5 @@ Python 3.13 está definido em `android/app/build.gradle` e no workflow; se mudar
 
 ## Ideias para as próximas versões
 
-- Metas / orçamento por categoria.
-- Cartão de crédito e parcelas.
+- Cartão de crédito com fatura (fechamento e vencimento da fatura).
 - Relatório em PDF.
