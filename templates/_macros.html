@@ -56,11 +56,7 @@
                     </form>
                 {% else %}
                     <a class="botao botao-claro botao-pequeno" href="{{ url_for('conta_editar', id_conta=c.id) }}">Editar</a>
-
-                    <form method="post" action="{{ url_for('conta_pagar', id_conta=c.id) }}"
-                          onsubmit="return confirm('Registrar o pagamento de {{ c.valor_exibido|moeda }} hoje?');" style="margin: 0;">
-                        <button type="submit" class="botao botao-receita botao-pequeno">✓ Pagar</button>
-                    </form>
+                    <a class="botao botao-receita botao-pequeno" href="{{ url_for('conta_pagar', id_conta=c.id) }}">✓ Pagar</a>
                 {% endif %}
             </div>
         {% endif %}
@@ -75,7 +71,7 @@
     <div class="categoria-linha">
         <div class="categoria-topo">
             <span>{{ o.icone }} {{ o.nome }}</span>
-            <strong>{{ o.gasto|moeda }} <span class="rotulo-pequeno">de {{ o.limite|moeda }}</span></strong>
+            <strong class="din">{{ o.gasto|moeda }} <span class="rotulo-pequeno">de {{ o.limite|moeda }}</span></strong>
         </div>
 
         <div class="barra-cat">
@@ -84,11 +80,24 @@
 
         <div class="dica" style="margin-top: 4px;">
             {% if o.situacao == 'estourado' %}
-                <strong style="color: #b91c1c;">Passou {{ (-o.restante)|moeda }}</strong> do limite ({{ o.percentual }}%)
+                <strong class="din" style="color: var(--vermelho);">Passou {{ (-o.restante)|moeda }}</strong> do limite ({{ o.percentual }}%)
             {% else %}
-                Restam {{ o.restante|moeda }} ({{ o.percentual }}% usado)
+                <span class="din">Restam {{ o.restante|moeda }}</span> ({{ o.percentual }}% usado)
             {% endif %}
-            {% if o.em_aberto %} · com contas em aberto: {{ o.previsto|moeda }}{% endif %}
+            {% if o.em_aberto %} · <span class="din">com contas em aberto: {{ o.previsto|moeda }}</span>{% endif %}
         </div>
     </div>
+{% endmacro %}
+
+
+{% macro botao_ocultar(ocultos, voltar) %}
+    {# Funciona sem JavaScript (recarrega a tela); com JavaScript, troca na hora (veja base.html). #}
+    <form method="post" action="{{ url_for('ocultar_valores') }}" class="form-olho">
+        <input type="hidden" name="ocultar" value="{{ '0' if ocultos else '1' }}">
+        <input type="hidden" name="voltar" value="{{ voltar }}">
+        <button type="submit" class="botao-olho" aria-label="Esconder ou mostrar os valores" title="Esconder ou mostrar os valores">
+            <svg class="olho-aberto" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+            <svg class="olho-fechado" viewBox="0 0 24 24"><path d="M10.6 5.1A10.4 10.4 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-2.6 3.6M6.6 6.6C3.8 8.4 2 12 2 12s3.5 7 10 7c1.9 0 3.6-.6 5-1.4"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M3 3l18 18"/></svg>
+        </button>
+    </form>
 {% endmacro %}

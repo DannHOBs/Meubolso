@@ -12,7 +12,7 @@
         <div class="rotulo-pequeno">Saldo do mês</div>
         <div class="valor-grande {{ 'positivo' if saldo_mes >= 0 else 'negativo' }}">{{ saldo_mes|moeda }}</div>
         <div class="dica">
-            Entradas {{ entradas|moeda }} · Saídas {{ saidas|moeda }} · {{ quantidade }}
+            Entradas <span class="din">{{ entradas|moeda }}</span> · Saídas <span class="din">{{ saidas|moeda }}</span> · {{ quantidade }}
             {{ 'lançamento' if quantidade == 1 else 'lançamentos' }}
         </div>
     </div>

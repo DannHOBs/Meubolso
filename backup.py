@@ -8,7 +8,7 @@ import os
 import re
 import sqlite3
 import tempfile
-from datetime import datetime
+from datetime import date, datetime
 
 import banco
 import seguranca
@@ -16,6 +16,13 @@ import seguranca
 PASTA_BACKUPS = os.getenv("MEUBOLSO_BACKUPS", "backups")
 
 PADRAO_NOME = re.compile(r"^backup_[\w\-]+\.(mbk|db)$")
+
+# Backup automático: criado ao entrar com a senha, no máximo uma vez por semana.
+# No Android, o app (Java) copia cada um para Downloads/MeuBolso e cria o marcador ".exportado".
+PREFIXO_AUTO = "backup_auto"
+DIAS_ENTRE_AUTOMATICOS = 7
+AUTOMATICOS_GUARDADOS = 4
+SUFIXO_EXPORTADO = ".exportado"
 
 TABELAS_OBRIGATORIAS = {"usuario", "categorias", "lancamentos"}
 
@@ -98,7 +105,63 @@ def excluir_backup(nome):
         return False
 
     os.remove(caminho)
+
+    if os.path.exists(caminho + SUFIXO_EXPORTADO):
+        os.remove(caminho + SUFIXO_EXPORTADO)
+
     return True
+
+
+def data_do_ultimo_backup():
+    """Data do backup mais recente (manual ou automático), ou None se nunca houve um."""
+    texto = banco.obter_config("ultimo_backup")
+
+    if texto:
+        try:
+            return date.fromisoformat(texto)
+        except ValueError:
+            pass
+
+    # Backups feitos antes da versão 5 não ficaram anotados: usa a data dos arquivos.
+    datas = [
+        datetime.fromtimestamp(os.path.getmtime(os.path.join(_pasta(), b["nome"]))).date()
+        for b in listar_backups()
+        if b["protegido"] and "antes-de-restaurar" not in b["nome"]
+    ]
+    return max(datas, default=None)
+
+
+def backup_automatico(senha, hoje=None):
+    """Cria o backup semanal se estiver ligado e na hora. Devolve o nome do arquivo ou None."""
+    hoje = hoje or date.today()
+
+    if banco.obter_config("backup_automatico", "1") != "1":
+        return None
+
+    ultimo = banco.obter_config("ultimo_backup_automatico")
+
+    if ultimo:
+        try:
+            dias = (hoje - date.fromisoformat(ultimo)).days
+        except ValueError:
+            dias = DIAS_ENTRE_AUTOMATICOS
+
+        if 0 <= dias < DIAS_ENTRE_AUTOMATICOS:
+            return None
+
+    nome = criar_backup(senha, PREFIXO_AUTO)
+    banco.definir_config("ultimo_backup_automatico", hoje.isoformat())
+    banco.definir_config("ultimo_backup", hoje.isoformat())
+
+    # Guarda só os mais recentes no aparelho (as cópias em Downloads ficam).
+    automaticos = sorted(
+        b["nome"] for b in listar_backups() if b["nome"].startswith(PREFIXO_AUTO + "_")
+    )
+
+    for antigo in automaticos[:-AUTOMATICOS_GUARDADOS]:
+        excluir_backup(antigo)
+
+    return nome
 
 
 def validar_arquivo(caminho):

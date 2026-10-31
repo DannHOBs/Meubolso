@@ -377,7 +377,7 @@ def totais_do_periodo(data_inicio, data_fim):
 
 
 def saldo_ate(data_limite):
-    """Saldo acumulado de tudo que aconteceu ANTES de data_limite (em centavos)."""
+    """Saldo acumulado de tudo que aconteceu ANTES de data_limite (em centavos), somando o saldo inicial."""
     conexao = conectar()
     linha = conexao.execute(
         """
@@ -390,7 +390,14 @@ def saldo_ate(data_limite):
         (data_limite,),
     ).fetchone()
     conexao.close()
-    return linha["saldo"]
+    return linha["saldo"] + obter_saldo_inicial()
+
+
+def contar_lancamentos():
+    conexao = conectar()
+    total = conexao.execute("SELECT COUNT(*) FROM lancamentos").fetchone()[0]
+    conexao.close()
+    return total
 
 
 def gastos_por_categoria(data_inicio, data_fim, tipo="despesa"):
@@ -566,8 +573,11 @@ def excluir_conta(id_conta):
     return apagou
 
 
-def pagar_conta(id_conta, data_pagamento):
-    """Registra a despesa nos lançamentos e marca a conta como paga. Devolve True se pagou."""
+def pagar_conta(id_conta, data_pagamento, valor_pago=None):
+    """Registra a despesa nos lançamentos e marca a conta como paga. Devolve True se pagou.
+
+    valor_pago: quanto foi pago de fato (luz e água mudam todo mês); sem ele, usa o valor da conta.
+    """
     conexao = conectar()
 
     try:
@@ -590,7 +600,7 @@ def pagar_conta(id_conta, data_pagamento):
             INSERT INTO lancamentos (tipo, valor_centavos, descricao, categoria_id, data)
             VALUES ('despesa', ?, ?, ?, ?)
             """,
-            (conta["valor_centavos"], conta["descricao"], conta["categoria_id"], data_pagamento),
+            (valor_pago or conta["valor_centavos"], conta["descricao"], conta["categoria_id"], data_pagamento),
         )
 
         conexao.execute(
@@ -938,3 +948,11 @@ def definir_config(chave, valor):
     )
     conexao.commit()
     conexao.close()
+
+
+def obter_saldo_inicial():
+    """Quanto a pessoa já tinha antes do primeiro lançamento (em centavos; pode ser negativo)."""
+    try:
+        return int(obter_config("saldo_inicial", "0"))
+    except ValueError:
+        return 0

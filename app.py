@@ -1,5 +1,6 @@
 import hmac
 import os
+import re
 import secrets
 import sqlite3
 import tempfile
@@ -53,8 +54,28 @@ TIPOS = ("receita", "despesa")
 INATIVIDADE_SEGUNDOS = 15 * 60
 TENTATIVAS_MAXIMAS = 3
 BLOQUEIO_SEGUNDOS = 60
+DIAS_PARA_LEMBRAR_BACKUP = 30
 
-_falhas_login = {"quantas": 0, "bloqueado_ate": 0.0}
+TEMAS = ("auto", "claro", "escuro")
+
+
+def _carregar_falhas_login():
+    """As tentativas erradas ficam no banco: fechar e abrir o app não zera o bloqueio."""
+    try:
+        return {
+            "quantas": int(banco.obter_config("login_falhas", "0")),
+            "bloqueado_ate": float(banco.obter_config("login_bloqueado_ate", "0")),
+        }
+    except ValueError:
+        return {"quantas": 0, "bloqueado_ate": 0.0}
+
+
+def _guardar_falhas_login():
+    banco.definir_config("login_falhas", _falhas_login["quantas"])
+    banco.definir_config("login_bloqueado_ate", _falhas_login["bloqueado_ate"])
+
+
+_falhas_login = _carregar_falhas_login()
 
 
 # ==========================================
@@ -90,6 +111,9 @@ def ler_valor(texto):
 
     if "," in texto:
         texto = texto.replace(".", "").replace(",", ".")
+    elif re.fullmatch(r"\d{1,3}(\.\d{3})+", texto):
+        # "1.500" ou "2.000.000": sem vírgula e com grupos de 3, o ponto separa os milhares.
+        texto = texto.replace(".", "")
 
     try:
         valor = Decimal(texto)
@@ -129,12 +153,30 @@ def rapido_ativo():
 
 @app.context_processor
 def variaveis_globais():
+    tema = banco.obter_config("tema", "auto")
+
     return {
         "versao_build": VERSAO_BUILD,
         "senha_fraca": banco.obter_config("senha_fraca") == "1",
         "rapido_disponivel": rapido_disponivel(),
         "rapido_ativo": rapido_ativo(),
+        "ocultar_valores": banco.obter_config("ocultar_valores") == "1",
+        "tema": tema if tema in TEMAS else "auto",
     }
+
+
+@app.after_request
+def sem_cache(resposta):
+    # Nada fica guardado no WebView: depois de "Sair", o botão voltar não mostra telas antigas com valores.
+    resposta.headers["Cache-Control"] = "no-store"
+    return resposta
+
+
+def destino_local(endereco):
+    """Só aceita voltar para uma tela do próprio app (nunca para um site de fora)."""
+    if endereco and endereco.startswith("/") and not endereco.startswith(("//", "/\\")):
+        return endereco
+    return url_for("inicio")
 
 
 # ==========================================
@@ -255,6 +297,10 @@ def login():
     if request.method == "POST":
         agora = time.time()
 
+        # Se o relógio do celular voltou no tempo, o bloqueio não dura mais que o normal.
+        if _falhas_login["bloqueado_ate"] > agora + BLOQUEIO_SEGUNDOS:
+            _falhas_login["bloqueado_ate"] = agora + BLOQUEIO_SEGUNDOS
+
         if agora < _falhas_login["bloqueado_ate"]:
             espera = int(_falhas_login["bloqueado_ate"] - agora) + 1
             flash(f"Muitas tentativas. Aguarde {espera} segundos.", "erro")
@@ -265,8 +311,18 @@ def login():
 
             if usuario and check_password_hash(usuario["senha"], senha_digitada):
                 _falhas_login.update(quantas=0, bloqueado_ate=0.0)
-                banco.definir_config("senha_fraca", "1" if seguranca.validar_senha(senha_digitada) else "0")
+                _guardar_falhas_login()
+                senha_fraca = bool(seguranca.validar_senha(senha_digitada))
+                banco.definir_config("senha_fraca", "1" if senha_fraca else "0")
                 entrar(usuario["nome"])
+
+                # O backup automático usa a senha digitada agora (é ela que protege o arquivo).
+                if not senha_fraca:
+                    try:
+                        backup.backup_automatico(senha_digitada)
+                    except Exception:
+                        pass  # um problema no backup nunca impede a entrada
+
                 return redirect(url_for("inicio"))
 
             _falhas_login["quantas"] += 1
@@ -276,6 +332,8 @@ def login():
                 flash(f"Senha incorreta. Aguarde {BLOQUEIO_SEGUNDOS} segundos para tentar de novo.", "erro")
             else:
                 flash("Senha incorreta.", "erro")
+
+            _guardar_falhas_login()
 
     usuario = banco.obter_usuario()
 
@@ -399,11 +457,20 @@ def inicio():
     n_atrasadas, total_atrasadas = banco.resumo_atrasadas(hoje.isoformat())
     itens_orcamento = orcamento_do_periodo(data_inicio, data_fim)
 
+    # Lembrete de backup: só para quem já tem lançamentos e está há muito tempo sem cópia.
+    ultimo_backup = backup.data_do_ultimo_backup()
+    dias_sem_backup = (hoje - ultimo_backup).days if ultimo_backup else None
+    lembrar_backup = bool(banco.contar_lancamentos()) and (
+        dias_sem_backup is None or dias_sem_backup > DIAS_PARA_LEMBRAR_BACKUP
+    )
+
     return render_template(
         "inicio.html",
         aba="inicio",
         endpoint_mes="inicio",
         nome=session.get("nome", ""),
+        lembrar_backup=lembrar_backup,
+        dias_sem_backup=dias_sem_backup,
         contas_proximas=[
             enriquecer_conta(c, hoje)
             for c in banco.listar_contas_em_aberto_ate((hoje + timedelta(days=7)).isoformat(), limite=4)
@@ -929,19 +996,52 @@ def conta_excluir_parcelas(id_conta):
     return voltar_para_contas(conta["vencimento"])
 
 
-@app.route("/contas/<int:id_conta>/pagar", methods=["POST"])
+@app.route("/contas/<int:id_conta>/pagar", methods=["GET", "POST"])
 def conta_pagar(id_conta):
     conta = banco.buscar_conta(id_conta)
 
     if conta is None:
         abort(404)
 
-    if banco.pagar_conta(id_conta, date.today().isoformat()):
-        flash(f"Pagamento de {formatar_moeda(conta['valor_centavos'])} registrado nos lançamentos.", "sucesso")
-    else:
+    if conta["paga"]:
         flash("Essa conta já estava paga.", "aviso")
+        return voltar_para_contas(conta["vencimento"])
 
-    return voltar_para_contas(conta["vencimento"])
+    if request.method == "POST":
+        # Sem os campos, vale o valor da conta e a data de hoje.
+        texto_valor = request.form.get("valor", "").strip()
+        texto_data = request.form.get("data", "").strip()
+        valor = ler_valor(texto_valor) if texto_valor else conta["valor_centavos"]
+        data_pagamento = ler_data(texto_data) if texto_data else date.today().isoformat()
+
+        if valor is None:
+            flash("Informe um valor maior que zero. Exemplo: 180,50", "erro")
+        elif data_pagamento is None:
+            flash("Informe uma data de pagamento válida.", "erro")
+        elif banco.pagar_conta(id_conta, data_pagamento, valor):
+            flash(f"Pagamento de {formatar_moeda(valor)} registrado nos lançamentos.", "sucesso")
+            return voltar_para_contas(conta["vencimento"])
+        else:
+            flash("Essa conta já estava paga.", "aviso")
+            return voltar_para_contas(conta["vencimento"])
+
+        form = request.form
+    else:
+        form = {
+            "valor": centavos_para_campo(conta["valor_centavos"]),
+            "data": date.today().isoformat(),
+        }
+
+    return render_template(
+        "pagar.html",
+        aba="contas",
+        conta=enriquecer_conta(conta, date.today()),
+        form=form,
+        titulo_pagina="Pagar conta",
+        subtitulo_pagina=conta["descricao_exibida"],
+        voltar_url=url_for("contas", **mes_do_lancamento(conta["vencimento"])),
+        voltar_texto="Contas",
+    )
 
 
 @app.route("/contas/<int:id_conta>/desfazer", methods=["POST"])
@@ -1180,6 +1280,66 @@ def mais():
     )
 
 
+@app.route("/saldo-inicial", methods=["GET", "POST"])
+def saldo_inicial():
+    if request.method == "POST":
+        texto = request.form.get("valor", "").strip()
+
+        if texto.replace("R$", "").strip("0,. ") == "":  # vazio, "0" ou "0,00"
+            centavos = 0
+        else:
+            centavos = ler_valor(texto)
+
+        if centavos is None:
+            flash("Informe um valor válido. Exemplo: 1.250,00", "erro")
+        else:
+            if request.form.get("negativo"):
+                centavos = -centavos
+
+            banco.definir_config("saldo_inicial", centavos)
+            flash(f"Saldo inicial: {formatar_moeda(centavos)}.", "sucesso")
+            return redirect(url_for("mais"))
+
+        form = request.form
+    else:
+        atual = banco.obter_saldo_inicial()
+        form = {
+            "valor": centavos_para_campo(abs(atual)) if atual else "",
+            "negativo": "1" if atual < 0 else "",
+        }
+
+    return render_template(
+        "saldo_inicial.html",
+        aba="mais",
+        form=form,
+        titulo_pagina="Saldo inicial",
+        subtitulo_pagina="Quanto você tinha antes de usar o app",
+        voltar_url=url_for("mais"),
+        voltar_texto="Mais",
+    )
+
+
+@app.route("/ocultar-valores", methods=["POST"])
+def ocultar_valores():
+    banco.definir_config("ocultar_valores", "1" if request.form.get("ocultar") == "1" else "0")
+
+    # A página troca na hora pelo JavaScript; o formulário comum (sem JavaScript) volta para a mesma tela.
+    if request.headers.get("X-Requested-With") == "fetch":
+        return "", 204
+
+    return redirect(destino_local(request.form.get("voltar")))
+
+
+@app.route("/tema", methods=["POST"])
+def mudar_tema():
+    tema = request.form.get("tema")
+
+    if tema in TEMAS:
+        banco.definir_config("tema", tema)
+
+    return redirect(url_for("mais"))
+
+
 # ==========================================
 # BACKUP (protegido por senha)
 # ==========================================
@@ -1193,6 +1353,8 @@ def tela_backup():
         aba="mais",
         backups=backups,
         antigos_sem_protecao=any(not b["protegido"] for b in backups),
+        automatico_ligado=banco.obter_config("backup_automatico", "1") == "1",
+        ultimo_automatico=banco.obter_config("ultimo_backup_automatico"),
         titulo_pagina="Backup",
         subtitulo_pagina="Cópia protegida por senha",
         voltar_url=url_for("mais"),
@@ -1215,9 +1377,22 @@ def criar_backup_web():
     else:
         try:
             backup.criar_backup(senha)
+            banco.definir_config("ultimo_backup", date.today().isoformat())
             flash("Backup protegido criado. Toque em Baixar para guardar fora do celular.", "sucesso")
         except Exception as erro:
             flash(f"Não foi possível criar o backup: {erro}", "erro")
+
+    return redirect(url_for("tela_backup"))
+
+
+@app.route("/backup/automatico", methods=["POST"])
+def backup_automatico_web():
+    if request.form.get("acao") == "ligar":
+        banco.definir_config("backup_automatico", "1")
+        flash("Backup automático ligado. O próximo é criado quando você entrar com a senha.", "sucesso")
+    else:
+        banco.definir_config("backup_automatico", "0")
+        flash("Backup automático desligado. Lembre-se de criar e baixar backups por conta própria.", "aviso")
 
     return redirect(url_for("tela_backup"))
 

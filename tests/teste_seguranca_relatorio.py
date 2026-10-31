@@ -159,7 +159,7 @@ r = cliente.get("/relatorio/pdf", query_string=mes_ano)
 conferir("PDF do mês é válido e vem como download", r.status_code == 200 and r.data.startswith(b"%PDF")
          and f"MeuBolso_{hoje.year}-{hoje.month:02d}.pdf" in r.headers.get("Content-Disposition", ""))
 
-with open("/tmp/exemplo_relatorio.pdf", "wb") as arquivo:
+with open(os.path.join(pasta, "exemplo_relatorio.pdf"), "wb") as arquivo:
     arquivo.write(r.data)
 
 if pypdf:

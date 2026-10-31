@@ -17,10 +17,18 @@
         </div>
     {% endif %}
 
+    {% if lembrar_backup %}
+        <div class="alerta alerta-aviso">
+            💾 {% if dias_sem_backup is none %}Você ainda não tem nenhum backup.{% else %}Seu último backup foi há {{ dias_sem_backup }} dias.{% endif %}
+            Se o celular quebrar ou o app for desinstalado, os dados somem.
+            <a href="{{ url_for('tela_backup') }}"><strong>Fazer backup agora</strong></a>
+        </div>
+    {% endif %}
+
     <div class="cartao">
         <div class="rotulo-pequeno">Saldo do mês</div>
         <div class="valor-grande {{ 'positivo' if saldo_mes >= 0 else 'negativo' }}">{{ saldo_mes|moeda }}</div>
-        <div class="dica">Saldo acumulado até o fim do mês: <strong>{{ (saldo_anterior + saldo_mes)|moeda }}</strong></div>
+        <div class="dica">Saldo acumulado até o fim do mês: <strong class="din">{{ (saldo_anterior + saldo_mes)|moeda }}</strong></div>
     </div>
 
     <div class="grade2" style="margin-bottom: 14px;">
@@ -50,7 +58,7 @@
         {% if n_atrasadas %}
             <div class="alerta alerta-erro" style="margin-bottom: 6px;">
                 ⚠️ {{ n_atrasadas }} {{ 'conta atrasada' if n_atrasadas == 1 else 'contas atrasadas' }}
-                ({{ total_atrasadas|moeda }})
+                (<span class="din">{{ total_atrasadas|moeda }}</span>)
             </div>
         {% endif %}
 
@@ -91,7 +99,7 @@
             <div class="categoria-linha">
                 <div class="categoria-topo">
                     <span>{{ c.icone }} {{ c.nome }}</span>
-                    <strong>{{ c.total|moeda }} <span class="rotulo-pequeno">({{ c.percentual }}%)</span></strong>
+                    <strong><span class="din">{{ c.total|moeda }}</span> <span class="rotulo-pequeno">({{ c.percentual }}%)</span></strong>
                 </div>
                 <div class="barra-cat">
                     <span style="width: {{ c.percentual }}%; background: {{ cores[loop.index0 % 8] }};"></span>

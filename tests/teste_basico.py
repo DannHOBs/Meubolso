@@ -137,11 +137,18 @@ r = cliente.post("/senha", data={"atual": "Gato&Lua2026", "nova": NOVA, "confirm
 conferir("troca a senha", "Senha alterada" in texto(r))
 
 print("Backup protegido")
+
+
+def backups_manuais():
+    # O login com senha forte já cria um backup automático (backup_auto_...); aqui contam só os manuais.
+    return [b for b in meubolso.backup.listar_backups() if not b["nome"].startswith(meubolso.backup.PREFIXO_AUTO)]
+
+
 r = cliente.post("/backup/criar", data={"senha": "errada"}, follow_redirects=True)
-conferir("backup exige a senha certa", "Senha incorreta" in texto(r) and not meubolso.backup.listar_backups())
+conferir("backup exige a senha certa", "Senha incorreta" in texto(r) and not backups_manuais())
 
 cliente.post("/backup/criar", data={"senha": NOVA})
-backups = meubolso.backup.listar_backups()
+backups = backups_manuais()
 conferir("cria backup protegido (.mbk)", len(backups) == 1 and backups[0]["protegido"] and backups[0]["nome"].endswith(".mbk"))
 
 r = cliente.get(f"/backup/baixar/{backups[0]['nome']}")

@@ -16,6 +16,12 @@
         <span class="seta-menu">›</span>
     </a>
 
+    <a class="linha-menu" href="{{ url_for('saldo_inicial') }}">
+        <div class="icone-redondo fundo-azul">🏦</div>
+        <div class="texto"><strong>Saldo inicial</strong><span class="sub">Quanto você tinha antes de usar o app</span></div>
+        <span class="seta-menu">›</span>
+    </a>
+
     <a class="linha-menu" href="{{ url_for('recorrentes') }}">
         <div class="icone-redondo fundo-ambar">🔁</div>
         <div class="texto"><strong>Contas recorrentes</strong><span class="sub">Aluguel, internet, assinaturas...</span></div>
@@ -57,6 +63,19 @@
         <span class="seta-menu">›</span>
     </a>
 
+</div>
+
+<div class="cartao">
+    <h2>Aparência</h2>
+
+    <form method="post" action="{{ url_for('mudar_tema') }}" class="abas-tipo" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 0;">
+        {% for valor, rotulo in [('auto', '📱 Automático'), ('claro', '☀️ Claro'), ('escuro', '🌙 Escuro')] %}
+            <button type="submit" name="tema" value="{{ valor }}"
+                    class="botao botao-pequeno {{ '' if tema == valor else 'botao-cinza' }}">{{ rotulo }}</button>
+        {% endfor %}
+    </form>
+
+    <div class="dica">Automático segue o modo escuro do celular.</div>
 </div>
 
 <div class="rodape">Meu Bolso · {{ versao_build }}</div>

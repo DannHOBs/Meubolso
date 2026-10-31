@@ -1,5 +1,6 @@
+{% from "_macros.html" import botao_ocultar %}
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-tema="{{ tema|default('auto') }}">
 
 <head>
 
@@ -10,26 +11,106 @@
         content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     >
 
+    <meta name="color-scheme" content="light dark">
+
     <title>{% block titulo %}{{ titulo_pagina|default("Meu Bolso") }} - Meu Bolso{% endblock %}</title>
 
     <style>
 
         :root {
+            color-scheme: light;
             --azul: #4338ca;
             --azul2: #6366f1;
+            --topo1: #4338ca;
+            --topo2: #6366f1;
             --fundo: #f3f5f9;
+            --cartao: #ffffff;
             --texto: #0f172a;
             --suave: #64748b;
             --linha: #e6eaf1;
             --verde: #16a34a;
             --verde-bg: #e8f7ee;
+            --verde-texto: #166534;
             --vermelho: #dc2626;
             --vermelho-bg: #fdecec;
+            --vermelho-texto: #991b1b;
             --ambar: #b45309;
             --ambar-bg: #fef3c7;
             --azul-bg: #eef0ff;
+            --cinza-bg: #eef1f6;
+            --cinza-texto: #475569;
+            --botao-cinza-bg: #e9edf3;
+            --botao-cinza-texto: #334155;
+            --campo-borda: #cdd5e1;
+            --rotulo: #475569;
+            --apagado: #94a3b8;
+            --oculto: #dfe4ec;
             --raio: 16px;
             --sombra: 0 2px 10px rgba(15, 23, 42, 0.06);
+        }
+
+        /* ---------- MODO ESCURO (automático pelo celular, ou escolhido em Mais → Aparência) ---------- */
+
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-tema="claro"]) {
+                color-scheme: dark;
+                --azul: #a5b4fc;
+                --topo1: #312e81;
+                --topo2: #4338ca;
+                --fundo: #0b1120;
+                --cartao: #151d2e;
+                --texto: #e2e8f0;
+                --suave: #94a3b8;
+                --linha: #26314a;
+                --verde: #4ade80;
+                --verde-bg: rgba(74, 222, 128, 0.14);
+                --verde-texto: #86efac;
+                --vermelho: #f87171;
+                --vermelho-bg: rgba(248, 113, 113, 0.15);
+                --vermelho-texto: #fca5a5;
+                --ambar: #fbbf24;
+                --ambar-bg: rgba(251, 191, 36, 0.14);
+                --azul-bg: rgba(129, 140, 248, 0.18);
+                --cinza-bg: #1e293b;
+                --cinza-texto: #cbd5e1;
+                --botao-cinza-bg: #1e293b;
+                --botao-cinza-texto: #e2e8f0;
+                --campo-borda: #334155;
+                --rotulo: #cbd5e1;
+                --apagado: #64748b;
+                --oculto: #2a3550;
+                --sombra: 0 2px 10px rgba(0, 0, 0, 0.35);
+            }
+        }
+
+        :root[data-tema="escuro"] {
+            color-scheme: dark;
+            --azul: #a5b4fc;
+            --topo1: #312e81;
+            --topo2: #4338ca;
+            --fundo: #0b1120;
+            --cartao: #151d2e;
+            --texto: #e2e8f0;
+            --suave: #94a3b8;
+            --linha: #26314a;
+            --verde: #4ade80;
+            --verde-bg: rgba(74, 222, 128, 0.14);
+            --verde-texto: #86efac;
+            --vermelho: #f87171;
+            --vermelho-bg: rgba(248, 113, 113, 0.15);
+            --vermelho-texto: #fca5a5;
+            --ambar: #fbbf24;
+            --ambar-bg: rgba(251, 191, 36, 0.14);
+            --azul-bg: rgba(129, 140, 248, 0.18);
+            --cinza-bg: #1e293b;
+            --cinza-texto: #cbd5e1;
+            --botao-cinza-bg: #1e293b;
+            --botao-cinza-texto: #e2e8f0;
+            --campo-borda: #334155;
+            --rotulo: #cbd5e1;
+            --apagado: #64748b;
+            --oculto: #2a3550;
+            --sombra: 0 2px 10px rgba(0, 0, 0, 0.35);
         }
 
         * {
@@ -60,7 +141,7 @@
         /* ---------- TOPO ---------- */
 
         .topo {
-            background: linear-gradient(135deg, var(--azul), var(--azul2));
+            background: linear-gradient(135deg, var(--topo1), var(--topo2));
             color: #fff;
             padding: calc(18px + env(safe-area-inset-top, 0px)) 0 26px;
             border-radius: 0 0 26px 26px;
@@ -120,7 +201,7 @@
         /* ---------- CARTÕES ---------- */
 
         .cartao {
-            background: #fff;
+            background: var(--cartao);
             border-radius: var(--raio);
             box-shadow: var(--sombra);
             padding: 16px;
@@ -162,7 +243,7 @@
         }
 
         .metrica {
-            background: #fff;
+            background: var(--cartao);
             border-radius: var(--raio);
             box-shadow: var(--sombra);
             padding: 14px;
@@ -187,7 +268,7 @@
         .fundo-vermelho { background: var(--vermelho-bg); }
         .fundo-azul { background: var(--azul-bg); }
         .fundo-ambar { background: var(--ambar-bg); }
-        .fundo-cinza { background: #eef1f6; }
+        .fundo-cinza { background: var(--cinza-bg); }
 
         .rotulo-pequeno {
             font-size: 12px;
@@ -243,7 +324,7 @@
         .botao-despesa { background: var(--vermelho); }
         .botao-perigo { background: var(--vermelho); }
         .botao-claro { background: var(--azul-bg); color: var(--azul); }
-        .botao-cinza { background: #e9edf3; color: #334155; }
+        .botao-cinza { background: var(--botao-cinza-bg); color: var(--botao-cinza-texto); }
 
         .botao-pequeno {
             padding: 9px 13px;
@@ -271,7 +352,7 @@
             display: block;
             font-size: 13px;
             font-weight: 700;
-            color: #475569;
+            color: var(--rotulo);
             margin-bottom: 6px;
         }
 
@@ -284,10 +365,10 @@
         textarea {
             width: 100%;
             padding: 13px;
-            border: 1px solid #cdd5e1;
+            border: 1px solid var(--campo-borda);
             border-radius: 12px;
             font-size: 16px;
-            background: #fff;
+            background: var(--cartao);
             color: var(--texto);
             font-family: inherit;
         }
@@ -325,8 +406,8 @@
             color: var(--azul);
         }
 
-        .alerta-erro { background: var(--vermelho-bg); color: #991b1b; }
-        .alerta-sucesso { background: var(--verde-bg); color: #166534; }
+        .alerta-erro { background: var(--vermelho-bg); color: var(--vermelho-texto); }
+        .alerta-sucesso { background: var(--verde-bg); color: var(--verde-texto); }
         .alerta-aviso { background: var(--ambar-bg); color: var(--ambar); }
 
         .selo {
@@ -335,12 +416,12 @@
             border-radius: 999px;
             font-size: 11px;
             font-weight: 700;
-            background: #eef1f6;
-            color: #475569;
+            background: var(--cinza-bg);
+            color: var(--cinza-texto);
         }
 
-        .selo-verde { background: var(--verde-bg); color: #166534; }
-        .selo-vermelho { background: var(--vermelho-bg); color: #991b1b; }
+        .selo-verde { background: var(--verde-bg); color: var(--verde-texto); }
+        .selo-vermelho { background: var(--vermelho-bg); color: var(--vermelho-texto); }
         .selo-azul { background: var(--azul-bg); color: var(--azul); }
         .selo-ambar { background: var(--ambar-bg); color: var(--ambar); }
 
@@ -432,7 +513,7 @@
             text-decoration: none;
             font-weight: 700;
             color: var(--suave);
-            background: #fff;
+            background: var(--cartao);
         }
 
         .abas-tipo a.ativa-receita {
@@ -459,7 +540,7 @@
             white-space: nowrap;
             padding: 8px 14px;
             border-radius: 999px;
-            background: #fff;
+            background: var(--cartao);
             border: 1px solid var(--linha);
             font-size: 13px;
             font-weight: 600;
@@ -580,7 +661,7 @@
 
         .barra-cat {
             height: 8px;
-            background: #eef1f6;
+            background: var(--cinza-bg);
             border-radius: 999px;
             overflow: hidden;
         }
@@ -621,7 +702,7 @@
         }
 
         .linha-menu .seta-menu {
-            color: #a3adbf;
+            color: var(--apagado);
             font-size: 20px;
         }
 
@@ -632,7 +713,7 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: #fff;
+            background: var(--cartao);
             border-top: 1px solid var(--linha);
             padding-bottom: env(safe-area-inset-bottom, 0px);
             z-index: 50;
@@ -707,7 +788,7 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: #fff;
+            background: var(--cartao);
             border-radius: 22px 22px 0 0;
             padding: 18px 18px calc(20px + env(safe-area-inset-bottom, 0px));
             z-index: 80;
@@ -726,7 +807,7 @@
 
         .rodape {
             text-align: center;
-            color: #94a3b8;
+            color: var(--apagado);
             font-size: 12px;
             padding: 18px 0 6px;
         }
@@ -735,6 +816,65 @@
         body.teclado .menu-inferior,
         body.teclado .fab {
             display: none;
+        }
+
+        /* ---------- ESCONDER VALORES (botão de olho no topo) ---------- */
+
+        .form-olho {
+            margin: 0;
+            flex: none;
+        }
+
+        .botao-olho {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            border: none;
+            padding: 0;
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .botao-olho svg {
+            width: 20px;
+            height: 20px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .botao-olho .olho-fechado,
+        body.valores-ocultos .botao-olho .olho-aberto {
+            display: none;
+        }
+
+        body.valores-ocultos .botao-olho .olho-fechado {
+            display: block;
+        }
+
+        body.valores-ocultos .valor-grande,
+        body.valores-ocultos .valor-medio,
+        body.valores-ocultos .item-valor,
+        body.valores-ocultos .din {
+            color: transparent !important;
+            background: var(--oculto) !important;
+            border-radius: 8px;
+            width: fit-content;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        body.valores-ocultos .valor-grande *,
+        body.valores-ocultos .valor-medio *,
+        body.valores-ocultos .item-valor *,
+        body.valores-ocultos .din * {
+            color: transparent !important;
         }
 
         @media (max-width: 380px) {
@@ -748,7 +888,7 @@
 
 </head>
 
-<body class="{% if sem_menu %}sem-menu{% endif %}">
+<body class="{% if sem_menu %}sem-menu{% endif %} {% if ocultar_valores and not sem_menu %}valores-ocultos{% endif %}">
 
     {% block topo %}
 
@@ -764,7 +904,13 @@
 
                 {% endif %}
 
-                <h1>{{ titulo_pagina }}</h1>
+                <div class="topo-linha">
+                    <h1>{{ titulo_pagina }}</h1>
+
+                    {% if not sem_menu %}
+                        {{ botao_ocultar(ocultar_valores, request.full_path) }}
+                    {% endif %}
+                </div>
 
                 {% if subtitulo_pagina %}
                     <p>{{ subtitulo_pagina }}</p>
@@ -889,6 +1035,43 @@
 
             document.addEventListener("focusout", function () {
                 document.body.classList.remove("teclado");
+            });
+        })();
+    </script>
+
+    <script>
+        // Botão de olho: esconde/mostra os valores na hora e guarda a escolha no app.
+        (function () {
+            if (!window.fetch || !window.FormData) {
+                return;  // sem fetch, o formulário funciona do jeito comum (recarrega a tela)
+            }
+
+            document.addEventListener("submit", function (evento) {
+                var form = evento.target;
+
+                if (!form.classList || !form.classList.contains("form-olho")) {
+                    return;
+                }
+
+                evento.preventDefault();
+
+                var ocultar = !document.body.classList.contains("valores-ocultos");
+                document.body.classList.toggle("valores-ocultos", ocultar);
+
+                var campos = document.querySelectorAll(".form-olho input[name='ocultar']");
+                for (var i = 0; i < campos.length; i++) {
+                    campos[i].value = ocultar ? "0" : "1";
+                }
+
+                var dados = new FormData();
+                dados.append("ocultar", ocultar ? "1" : "0");
+
+                fetch(form.action, {
+                    method: "POST",
+                    body: dados,
+                    credentials: "same-origin",
+                    headers: { "X-Requested-With": "fetch" }
+                }).catch(function () {});
             });
         })();
     </script>

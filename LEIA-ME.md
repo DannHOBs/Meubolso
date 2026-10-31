@@ -57,6 +57,22 @@ Mesma base do FINANCBETEL (Flask + SQLite + APK pelo GitHub), mas para uso pesso
   módulos novos: `seguranca.py` e `relatorio.py`). Substitua o workflow pelo da versão nova. Se esquecer, a conferência
   automática avisa antes de gerar o APK.
 
+### Novo na versão 5: proteção dos dados e visual
+
+- **Valores com ponto de milhar:** "1.500" agora é lido como R$ 1.500,00 (antes virava R$ 1,50). "12.50" continua R$ 12,50.
+- **Backup automático:** uma vez por semana, ao entrar com a senha, o app cria um backup protegido. No Android, uma cópia vai
+  para **Downloads/MeuBolso** e continua lá mesmo se o app for desinstalado. Ficam os 4 mais recentes dentro do app.
+  Liga/desliga em Mais → Backup. Quem entra só pela digital ganha o backup na próxima vez que digitar a senha.
+- **Lembrete de backup:** o Início avisa quando não há backup ou o último tem mais de 30 dias.
+- **Pagar com valor e data:** o "✓ Pagar" abre uma tela para ajustar o valor pago (luz, água, juros) e a data do pagamento.
+- **Saldo inicial:** Mais → Saldo inicial. Entra no "saldo acumulado" (pode ser negativo).
+- **Esconder valores:** botão de olho no topo das telas. Troca os valores por faixas cinzas; a escolha fica guardada.
+- **Modo escuro:** segue o celular sozinho, ou escolha em Mais → Aparência (Automático, Claro ou Escuro).
+- **Tela de abertura:** ícone e cor do app enquanto o Python inicia, sem piscar branco.
+- **Mais privacidade (Android):** o app não aparece na miniatura dos apps recentes e não permite print de tela;
+  depois de 1 minuto fora do app, pede a senha (ou a digital) de novo. O botão voltar não mostra telas antigas depois de sair.
+- **Bloqueio de senha que não zera:** os 60 s de espera após 3 erros continuam valendo mesmo fechando e abrindo o app.
+
 ## Testar no computador
 
     pip install -r requirements.txt
@@ -64,6 +80,7 @@ Mesma base do FINANCBETEL (Flask + SQLite + APK pelo GitHub), mas para uso pesso
     python tests/teste_contas.py     # teste automático das contas e recorrências
     python tests/teste_orcamento_parcelas.py   # teste automático do orçamento e das parcelas
     python tests/teste_seguranca_relatorio.py  # teste automático da segurança e do relatório PDF
+    python tests/teste_versao5.py    # teste automático da versão 5 (backup automático, saldo inicial, ocultar valores...)
     python app.py                    # abre em http://127.0.0.1:5000
 
 ## Gerar o APK
@@ -79,5 +96,9 @@ Python 3.13 está definido em `android/app/build.gradle` e no workflow; se mudar
 ## Ideias para as próximas versões
 
 - Cartão de crédito com fatura (fechamento e vencimento da fatura).
+- Busca nos lançamentos e filtro por categoria; exportar CSV.
+- Notificação do Android para contas vencendo.
+- Chave de assinatura própria (guardada nos Secrets do GitHub). Atenção: trocar a chave obriga a desinstalar o app
+  (faça backup antes), por isso fica para uma versão planejada.
 - Token interno para todas as chamadas do servidor local (hoje só a entrada rápida usa).
 - Gráficos no Início e relatório do ano.

@@ -15,6 +15,28 @@
 {% endif %}
 
 <div class="cartao">
+    <div class="cartao-cabecalho">
+        <h2>Backup automático</h2>
+        <span class="selo {{ 'selo-verde' if automatico_ligado else '' }}">{{ 'Ligado' if automatico_ligado else 'Desligado' }}</span>
+    </div>
+
+    <p class="dica" style="margin-top: 0;">
+        Uma vez por semana, quando você entra com a senha, o app cria um backup protegido
+        {% if rapido_disponivel %}e guarda uma cópia em <strong>Downloads/MeuBolso</strong> (ela continua lá mesmo se o app for desinstalado){% endif %}.
+        Entrando só pela digital, o backup espera até a próxima vez que você usar a senha.
+        {% if ultimo_automatico %}<br>Último: {{ ultimo_automatico|data_br }}.{% endif %}
+    </p>
+
+    <form method="post" action="{{ url_for('backup_automatico_web') }}" style="margin: 0;">
+        {% if automatico_ligado %}
+            <button type="submit" name="acao" value="desligar" class="botao botao-cinza botao-bloco">Desligar backup automático</button>
+        {% else %}
+            <button type="submit" name="acao" value="ligar" class="botao botao-bloco">Ligar backup automático</button>
+        {% endif %}
+    </form>
+</div>
+
+<div class="cartao">
     <h2>Criar backup protegido</h2>
     <p class="dica" style="margin-top: 0;">
         O arquivo é criptografado com a sua senha atual do app. Para restaurar, será preciso essa mesma senha.

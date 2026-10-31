@@ -7,13 +7,19 @@ import android.content.ActivityNotFoundException;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.ColorStateList;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.SystemClock;
 import android.provider.MediaStore;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.JsResult;
@@ -25,12 +31,16 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import com.chaquo.python.Python;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -51,19 +61,34 @@ public class MainActivity extends Activity {
     private static volatile boolean servidorPronto = false;
 
     private WebView webView;
+    private View telaAbertura;
+    private ProgressBar carregando;
     private TextView aviso;
     private String enderecoBase;
 
     private static final int PEDIDO_ARQUIVO = 1001;
     private static final int PEDIDO_BLOQUEIO = 1002;
 
+    // Fora do app por mais que isso (outro app, tela apagada), pede a senha de novo.
+    private static final long BLOQUEIO_EM_SEGUNDO_PLANO_MS = 60_000;
+
     // Código secreto desta execução do app (compartilhado só com o servidor Python).
     private static volatile String tokenRapido = "";
     private ValueCallback<Uri[]> seletorArquivo;
 
+    private boolean primeiraTelaCarregada = false;
+    private boolean limparHistorico = false;
+    private boolean aguardandoOutraTela = false;  // seletor de arquivo ou bloqueio do celular abertos por nós
+    private long saiuEm = 0;
+
+    private static final Object TRAVA_EXPORTACAO = new Object();
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Valores financeiros: sem prints e sem miniatura na lista de apps recentes.
+        getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE);
 
         FrameLayout raiz = new FrameLayout(this);
 
@@ -73,12 +98,8 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT));
 
-        aviso = new TextView(this);
-        aviso.setText("Iniciando o Meu Bolso...");
-        aviso.setTextSize(18);
-        aviso.setGravity(Gravity.CENTER);
-        aviso.setPadding(48, 48, 48, 48);
-        raiz.addView(aviso, new FrameLayout.LayoutParams(
+        telaAbertura = criarTelaAbertura();
+        raiz.addView(telaAbertura, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT));
 
@@ -90,6 +111,65 @@ public class MainActivity extends Activity {
         CookieManager.getInstance().removeAllCookies(null);
 
         iniciarServidor();
+    }
+
+    // ---------- tela de abertura (enquanto o Python inicia) ----------
+
+    private View criarTelaAbertura() {
+        LinearLayout tela = new LinearLayout(this);
+        tela.setOrientation(LinearLayout.VERTICAL);
+        tela.setGravity(Gravity.CENTER);
+        tela.setBackground(new GradientDrawable(
+                GradientDrawable.Orientation.TL_BR,
+                new int[] {0xFF4338CA, 0xFF6366F1}));
+        // Toques não passam para o WebView que está por baixo.
+        tela.setClickable(true);
+
+        ImageView icone = new ImageView(this);
+        icone.setImageResource(R.drawable.ic_launcher_foreground);
+        tela.addView(icone, new LinearLayout.LayoutParams(dp(160), dp(160)));
+
+        TextView nome = new TextView(this);
+        nome.setText("Meu Bolso");
+        nome.setTextColor(Color.WHITE);
+        nome.setTextSize(28);
+        nome.setTypeface(Typeface.DEFAULT_BOLD);
+        nome.setGravity(Gravity.CENTER);
+        tela.addView(nome, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        carregando = new ProgressBar(this);
+        carregando.setIndeterminateTintList(ColorStateList.valueOf(Color.WHITE));
+        LinearLayout.LayoutParams posicaoCarregando = new LinearLayout.LayoutParams(dp(34), dp(34));
+        posicaoCarregando.topMargin = dp(32);
+        tela.addView(carregando, posicaoCarregando);
+
+        aviso = new TextView(this);
+        aviso.setText("Preparando seus dados...");
+        aviso.setTextColor(0xE6FFFFFF);
+        aviso.setTextSize(15);
+        aviso.setGravity(Gravity.CENTER);
+        aviso.setPadding(dp(32), 0, dp(32), 0);
+        LinearLayout.LayoutParams posicaoAviso = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+        posicaoAviso.topMargin = dp(14);
+        tela.addView(aviso, posicaoAviso);
+
+        return tela;
+    }
+
+    private void esconderTelaAbertura() {
+        webView.setVisibility(View.VISIBLE);
+        telaAbertura.animate()
+                .alpha(0f)
+                .setDuration(250)
+                .withEndAction(() -> telaAbertura.setVisibility(View.GONE));
+    }
+
+    private int dp(int valor) {
+        return Math.round(valor * getResources().getDisplayMetrics().density);
     }
 
     private void configurarWebView() {
@@ -109,6 +189,24 @@ public class MainActivity extends Activity {
                 // Nunca sai do sistema local.
                 return enderecoBase == null || !url.startsWith(enderecoBase);
             }
+
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                if (limparHistorico) {
+                    // Depois de bloquear, o botão voltar não leva às telas de antes.
+                    view.clearHistory();
+                    limparHistorico = false;
+                }
+
+                if (!primeiraTelaCarregada) {
+                    primeiraTelaCarregada = true;
+                    esconderTelaAbertura();
+                } else {
+                    view.setVisibility(View.VISIBLE);
+                }
+
+                exportarBackupsAutomaticos();
+            }
         });
 
         // Sem isso, os avisos de confirmação (excluir, restaurar...) não aparecem.
@@ -122,8 +220,10 @@ public class MainActivity extends Activity {
                 seletorArquivo = callback;
 
                 try {
+                    aguardandoOutraTela = true;
                     startActivityForResult(params.createIntent(), PEDIDO_ARQUIVO);
                 } catch (ActivityNotFoundException semSeletor) {
+                    aguardandoOutraTela = false;
                     seletorArquivo = null;
                     return false;
                 }
@@ -192,13 +292,12 @@ public class MainActivity extends Activity {
 
     private void carregarSistema() {
         enderecoBase = "http://127.0.0.1:" + porta + "/";
-        aviso.setVisibility(View.GONE);
-        webView.setVisibility(View.VISIBLE);
+        // A tela de abertura só sai quando a primeira página terminar de carregar (onPageFinished).
         webView.loadUrl(enderecoBase);
     }
 
     private void mostrarErro(Throwable erro) {
-        aviso.setVisibility(View.VISIBLE);
+        carregando.setVisibility(View.GONE);
         aviso.setText("Não foi possível iniciar o sistema.\n\n" + erro);
     }
 
@@ -267,30 +366,10 @@ public class MainActivity extends Activity {
                     throw new IOException("O servidor respondeu " + conexao.getResponseCode());
                 }
 
-                ContentValues valores = new ContentValues();
-                valores.put(MediaStore.Downloads.DISPLAY_NAME, nome);
-                valores.put(MediaStore.Downloads.MIME_TYPE, tipoArquivo);
-                valores.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/MeuBolso");
-                valores.put(MediaStore.Downloads.IS_PENDING, 1);
-
-                final Uri destino = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, valores);
-
-                if (destino == null) {
-                    throw new IOException("Não foi possível criar o arquivo em Downloads.");
+                final Uri destino;
+                try (InputStream entrada = conexao.getInputStream()) {
+                    destino = salvarEmDownloads(nome, tipoArquivo, entrada);
                 }
-
-                try (InputStream entrada = conexao.getInputStream();
-                     OutputStream saida = getContentResolver().openOutputStream(destino)) {
-                    byte[] buffer = new byte[8192];
-                    int lidos;
-                    while ((lidos = entrada.read(buffer)) != -1) {
-                        saida.write(buffer, 0, lidos);
-                    }
-                }
-
-                valores.clear();
-                valores.put(MediaStore.Downloads.IS_PENDING, 0);
-                getContentResolver().update(destino, valores, null, null);
 
                 runOnUiThread(() -> arquivoSalvo(destino, nome, tipoArquivo));
             } catch (final Exception erro) {
@@ -298,6 +377,80 @@ public class MainActivity extends Activity {
                         MainActivity.this,
                         "Erro ao baixar: " + erro.getMessage(),
                         Toast.LENGTH_LONG).show());
+            }
+        }).start();
+    }
+
+    /** Grava em Downloads/MeuBolso (fica no celular mesmo se o app for desinstalado). */
+    private Uri salvarEmDownloads(String nome, String tipo, InputStream entrada) throws IOException {
+        ContentValues valores = new ContentValues();
+        valores.put(MediaStore.Downloads.DISPLAY_NAME, nome);
+        valores.put(MediaStore.Downloads.MIME_TYPE, tipo);
+        valores.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/MeuBolso");
+        valores.put(MediaStore.Downloads.IS_PENDING, 1);
+
+        Uri destino = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, valores);
+
+        if (destino == null) {
+            throw new IOException("Não foi possível criar o arquivo em Downloads.");
+        }
+
+        try (OutputStream saida = getContentResolver().openOutputStream(destino)) {
+            byte[] buffer = new byte[8192];
+            int lidos;
+            while ((lidos = entrada.read(buffer)) != -1) {
+                saida.write(buffer, 0, lidos);
+            }
+        } catch (IOException erro) {
+            getContentResolver().delete(destino, null, null);
+            throw erro;
+        }
+
+        valores.clear();
+        valores.put(MediaStore.Downloads.IS_PENDING, 0);
+        getContentResolver().update(destino, valores, null, null);
+
+        return destino;
+    }
+
+    /**
+     * O servidor Python cria o backup automático semanal (backup_auto_*.mbk) na pasta do app.
+     * Aqui ele é copiado para Downloads/MeuBolso; o marcador ".exportado" evita copiar duas vezes.
+     */
+    private void exportarBackupsAutomaticos() {
+        final File pasta = new File(getFilesDir(), "dados/backups");
+
+        new Thread(() -> {
+            synchronized (TRAVA_EXPORTACAO) {
+                File[] arquivos = pasta.listFiles((dir, nome) ->
+                        nome.startsWith("backup_auto_") && nome.endsWith(".mbk"));
+
+                if (arquivos == null) {
+                    return;
+                }
+
+                for (File arquivo : arquivos) {
+                    File marcador = new File(pasta, arquivo.getName() + ".exportado");
+
+                    if (marcador.exists()) {
+                        continue;
+                    }
+
+                    try (InputStream entrada = new FileInputStream(arquivo)) {
+                        salvarEmDownloads(arquivo.getName(), "application/octet-stream", entrada);
+
+                        if (!marcador.createNewFile()) {
+                            continue;
+                        }
+
+                        runOnUiThread(() -> Toast.makeText(
+                                MainActivity.this,
+                                "Backup automático salvo em Downloads/MeuBolso",
+                                Toast.LENGTH_LONG).show());
+                    } catch (IOException erro) {
+                        // Tenta de novo na próxima tela carregada.
+                    }
+                }
             }
         }).start();
     }
@@ -367,16 +520,54 @@ public class MainActivity extends Activity {
         }
 
         try {
+            aguardandoOutraTela = true;
             startActivityForResult(pedido, PEDIDO_BLOQUEIO);
         } catch (ActivityNotFoundException semTela) {
+            aguardandoOutraTela = false;
             Toast.makeText(this, "Não foi possível pedir o bloqueio do celular.", Toast.LENGTH_LONG).show();
         }
+    }
+
+    // ---------- bloqueio quando o app fica em segundo plano ----------
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        // O seletor de arquivo e o bloqueio do celular também "tiram" o app da tela: esses não contam.
+        saiuEm = aguardandoOutraTela ? 0 : SystemClock.elapsedRealtime();
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+
+        if (saiuEm > 0 && servidorPronto && enderecoBase != null
+                && SystemClock.elapsedRealtime() - saiuEm > BLOQUEIO_EM_SEGUNDO_PLANO_MS) {
+            bloquear();
+        }
+        saiuEm = 0;
+    }
+
+    private void bloquear() {
+        // Esconde a tela antiga na hora; ela volta quando a página de senha terminar de carregar.
+        webView.setVisibility(View.INVISIBLE);
+
+        // Assim a tela de senha volta a pedir a digital sozinha (se o desbloqueio rápido estiver ligado).
+        webView.evaluateJavascript("try { sessionStorage.removeItem('rapido_tentado'); } catch (e) {}", null);
+
+        // A sessão do Flask fica no cookie: apagando-o, o servidor pede a senha de novo.
+        CookieManager.getInstance().removeAllCookies(removidos -> {
+            limparHistorico = true;
+            webView.loadUrl(enderecoBase);
+        });
     }
 
     // ---------- resultado do seletor de arquivos e do bloqueio ----------
 
     @Override
     protected void onActivityResult(int pedido, int resultado, Intent dados) {
+        aguardandoOutraTela = false;
+
         if (pedido == PEDIDO_BLOQUEIO) {
             if (resultado == RESULT_OK && enderecoBase != null && !tokenRapido.isEmpty()) {
                 webView.loadUrl(enderecoBase + "entrada-rapida?t=" + tokenRapido);

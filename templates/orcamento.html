@@ -13,7 +13,7 @@
         <div class="cartao">
             <div class="rotulo-pequeno">Gasto nas categorias com limite</div>
             <div class="valor-grande {{ 'negativo' if total_gasto > total_limite else 'positivo' }}">{{ total_gasto|moeda }}</div>
-            <div class="dica">Soma dos limites: <strong>{{ total_limite|moeda }}</strong></div>
+            <div class="dica">Soma dos limites: <strong class="din">{{ total_limite|moeda }}</strong></div>
         </div>
     {% else %}
         <div class="alerta">
@@ -25,14 +25,14 @@
     <div class="cartao">
         {% for o in itens %}
 
-            <div style="padding: 6px 0 14px; {% if not loop.last %}border-bottom: 1px solid #eef1f6; margin-bottom: 12px;{% endif %}">
+            <div style="padding: 6px 0 14px; {% if not loop.last %}border-bottom: 1px solid var(--linha); margin-bottom: 12px;{% endif %}">
 
                 {% if o.limite %}
                     {{ barra_orcamento(o) }}
                 {% else %}
                     <div class="categoria-topo">
                         <span>{{ o.icone }} {{ o.nome }}</span>
-                        <strong>{{ o.gasto|moeda }}</strong>
+                        <strong class="din">{{ o.gasto|moeda }}</strong>
                     </div>
                     <div class="dica" style="margin-top: 2px;">Sem limite definido</div>
                 {% endif %}
