@@ -23,6 +23,14 @@
                 ponte.autenticar();
             });
 
+            if (ponte.recuperarSenha) {
+                var esqueci = document.getElementById('esqueci-senha');
+                esqueci.style.display = 'block';
+                esqueci.querySelector('button').addEventListener('click', function () {
+                    ponte.recuperarSenha();
+                });
+            }
+
             // Pede automaticamente só na primeira vez que o app é aberto.
             try {
                 if (!sessionStorage.getItem('rapido_tentado')) {
@@ -44,4 +52,16 @@
     <button type="submit" class="botao botao-bloco">Entrar</button>
 
 </form>
+
+{% if rapido_ativo %}
+    <div id="esqueci-senha" style="display: none; text-align: center;">
+        <button type="button" class="botao botao-cinza botao-pequeno">Esqueci minha senha</button>
+        <div class="dica">Confirme com a digital, rosto ou PIN do celular e crie uma senha nova.</div>
+    </div>
+{% elif rapido_disponivel %}
+    <div class="dica" style="text-align: center; padding: 0 10px;">
+        Dica: ligue o <strong>Desbloqueio rápido</strong> em Mais. Assim, se esquecer a senha,
+        dá para criar uma nova usando a digital ou o PIN do celular.
+    </div>
+{% endif %}
 {% endblock %}

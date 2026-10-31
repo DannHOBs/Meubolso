@@ -237,7 +237,7 @@ def proteger_sistema():
             return redirect(url_for("primeiro_acesso"))
         return None
 
-    if endpoint in ("login", "primeiro_acesso", "entrada_rapida"):
+    if endpoint in ("login", "primeiro_acesso", "entrada_rapida", "recuperar_senha"):
         return None
 
     if not session.get("logado"):
@@ -399,6 +399,65 @@ def entrada_rapida():
 
     flash("Não foi possível entrar com o bloqueio do celular. Digite sua senha.", "erro")
     return redirect(url_for("login"))
+
+
+MINUTOS_PARA_REDEFINIR = 5
+
+
+@app.route("/recuperar-senha", methods=["GET", "POST"])
+def recuperar_senha():
+    """Esqueci minha senha: depois da digital/PIN do celular, o app deixa criar uma senha nova.
+
+    Só existe com o desbloqueio rápido ligado, e só o app Android conhece o código (token) desta abertura.
+    """
+    usuario = banco.obter_usuario()
+    enviado = request.args.get("t")
+
+    if enviado is not None:
+        token = os.getenv("MEUBOLSO_TOKEN_RAPIDO", "")
+
+        if token and usuario and rapido_ativo() and hmac.compare_digest(enviado.encode(), token.encode()):
+            session.clear()
+            session["redefinir_ate"] = time.time() + MINUTOS_PARA_REDEFINIR * 60
+            # Tira o código do endereço (ele não fica no histórico do WebView).
+            return redirect(url_for("recuperar_senha"))
+
+        flash("Não foi possível confirmar pelo bloqueio do celular.", "erro")
+        return redirect(url_for("login"))
+
+    if not usuario or time.time() > session.get("redefinir_ate", 0):
+        session.pop("redefinir_ate", None)
+        flash("O tempo para criar a senha nova acabou. Confirme pelo bloqueio do celular de novo.", "erro")
+        return redirect(url_for("login"))
+
+    if request.method == "POST":
+        nova = request.form.get("nova", "")
+        confirmar = request.form.get("confirmar", "")
+        erro_senha = seguranca.validar_senha(nova)
+
+        if erro_senha:
+            flash(erro_senha, "erro")
+        elif nova != confirmar:
+            flash("As duas senhas não são iguais.", "erro")
+        else:
+            banco.alterar_senha(generate_password_hash(nova))
+            banco.definir_config("senha_fraca", "0")
+            _falhas_login.update(quantas=0, bloqueado_ate=0.0)
+            _guardar_falhas_login()
+            entrar(usuario["nome"])
+            flash(
+                "Senha nova criada. Atenção: backups feitos antes continuam abrindo só com a senha antiga. "
+                "Crie um backup novo em Mais → Backup.",
+                "sucesso",
+            )
+            return redirect(url_for("inicio"))
+
+    return render_template(
+        "recuperar_senha.html",
+        sem_menu=True,
+        titulo_pagina="Criar senha nova",
+        subtitulo_pagina=f"Olá, {usuario['nome']}! Você confirmou pelo celular.",
+    )
 
 
 @app.route("/desbloqueio-rapido", methods=["GET", "POST"])

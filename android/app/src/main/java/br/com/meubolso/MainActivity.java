@@ -68,6 +68,7 @@ public class MainActivity extends Activity {
 
     private static final int PEDIDO_ARQUIVO = 1001;
     private static final int PEDIDO_BLOQUEIO = 1002;
+    private static final int PEDIDO_RECUPERAR_SENHA = 1003;
 
     // Fora do app por mais que isso (outro app, tela apagada), pede a senha de novo.
     private static final long BLOQUEIO_EM_SEGUNDO_PLANO_MS = 60_000;
@@ -499,11 +500,16 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void autenticar() {
-            runOnUiThread(() -> pedirBloqueioDoCelular());
+            runOnUiThread(() -> pedirBloqueioDoCelular(PEDIDO_BLOQUEIO, "Confirme que é você para abrir o app"));
+        }
+
+        @JavascriptInterface
+        public void recuperarSenha() {
+            runOnUiThread(() -> pedirBloqueioDoCelular(PEDIDO_RECUPERAR_SENHA, "Confirme que é você para criar uma senha nova"));
         }
     }
 
-    private void pedirBloqueioDoCelular() {
+    private void pedirBloqueioDoCelular(int codigoPedido, String descricao) {
         KeyguardManager gerenciador = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
 
         if (gerenciador == null || !gerenciador.isDeviceSecure()) {
@@ -511,8 +517,7 @@ public class MainActivity extends Activity {
             return;
         }
 
-        Intent pedido = gerenciador.createConfirmDeviceCredentialIntent(
-                "Meu Bolso", "Confirme que é você para abrir o app");
+        Intent pedido = gerenciador.createConfirmDeviceCredentialIntent("Meu Bolso", descricao);
 
         if (pedido == null) {
             Toast.makeText(this, "Não foi possível pedir o bloqueio do celular.", Toast.LENGTH_LONG).show();
@@ -521,7 +526,7 @@ public class MainActivity extends Activity {
 
         try {
             aguardandoOutraTela = true;
-            startActivityForResult(pedido, PEDIDO_BLOQUEIO);
+            startActivityForResult(pedido, codigoPedido);
         } catch (ActivityNotFoundException semTela) {
             aguardandoOutraTela = false;
             Toast.makeText(this, "Não foi possível pedir o bloqueio do celular.", Toast.LENGTH_LONG).show();
@@ -571,6 +576,13 @@ public class MainActivity extends Activity {
         if (pedido == PEDIDO_BLOQUEIO) {
             if (resultado == RESULT_OK && enderecoBase != null && !tokenRapido.isEmpty()) {
                 webView.loadUrl(enderecoBase + "entrada-rapida?t=" + tokenRapido);
+            }
+            return;
+        }
+
+        if (pedido == PEDIDO_RECUPERAR_SENHA) {
+            if (resultado == RESULT_OK && enderecoBase != null && !tokenRapido.isEmpty()) {
+                webView.loadUrl(enderecoBase + "recuperar-senha?t=" + tokenRapido);
             }
             return;
         }

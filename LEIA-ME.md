@@ -71,6 +71,9 @@ Mesma base do FINANCBETEL (Flask + SQLite + APK pelo GitHub), mas para uso pesso
 - **Tela de abertura:** ícone e cor do app enquanto o Python inicia, sem piscar branco.
 - **Mais privacidade (Android):** o app não aparece na miniatura dos apps recentes e não permite print de tela;
   depois de 1 minuto fora do app, pede a senha (ou a digital) de novo. O botão voltar não mostra telas antigas depois de sair.
+- **Esqueci minha senha (Android):** com o Desbloqueio rápido ligado, a tela de entrada mostra "Esqueci minha senha".
+  Depois de confirmar com a digital, rosto ou PIN do celular, dá para criar uma senha nova sem perder os dados
+  (vale por 5 minutos). Backups feitos antes continuam abrindo só com a senha antiga.
 - **Bloqueio de senha que não zera:** os 60 s de espera após 3 erros continuam valendo mesmo fechando e abrindo o app.
 
 ## Testar no computador

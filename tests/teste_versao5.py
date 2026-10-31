@@ -184,6 +184,57 @@ cliente.post("/tema", data={"tema": "roxo"})
 conferir("tema inválido é ignorado", banco.obter_config("tema") == "escuro")
 cliente.post("/tema", data={"tema": "auto"})
 
+print("Esqueci minha senha (pela digital/PIN do celular)")
+cliente.get("/sair")
+r = cliente.get("/login")
+conferir("no computador (sem Android), a tela de entrada não oferece recuperar", "Esqueci minha senha" not in texto(r))
+
+TOKEN = "b" * 64
+os.environ["MEUBOLSO_TOKEN_RAPIDO"] = TOKEN
+r = cliente.get("/login")
+conferir("com o desbloqueio rápido desligado, a entrada sugere ligá-lo", "se esquecer a senha" in texto(r) and "Esqueci minha senha" not in texto(r))
+r = cliente.get("/recuperar-senha?t=" + TOKEN, follow_redirects=True)
+conferir("desligado, o código não libera a troca de senha", "Não foi possível confirmar" in texto(r))
+
+banco.definir_config("desbloqueio_rapido", "1")
+r = cliente.get("/login")
+conferir("ligado, a entrada mostra 'Esqueci minha senha'", "Esqueci minha senha" in texto(r))
+
+r = cliente.get("/recuperar-senha", follow_redirects=True)
+conferir("sem confirmar pelo celular, não abre a tela de senha nova", "tempo para criar a senha nova acabou" in texto(r))
+r = cliente.get("/recuperar-senha?t=" + "c" * 64, follow_redirects=True)
+conferir("código errado é recusado", "Não foi possível confirmar" in texto(r))
+r = cliente.post("/recuperar-senha", data={"nova": "Nova&Senha99", "confirmar": "Nova&Senha99"})
+conferir("não dá para trocar a senha direto, sem confirmar", banco.obter_config("senha_fraca") is not None and r.status_code == 302 and "/login" in r.location)
+conferir("e a senha antiga continua valendo", meubolso.senha_atual_confere(FORTE))
+
+r = cliente.get("/recuperar-senha?t=" + TOKEN)
+conferir("com o código certo, vai para a tela de senha nova (sem o código no endereço)",
+         r.status_code == 302 and r.location.endswith("/recuperar-senha"))
+r = cliente.get("/recuperar-senha")
+conferir("a tela pede a senha nova", "Criar senha nova" in texto(r) and "Salvar e entrar" in texto(r))
+r = cliente.get("/")
+conferir("confirmar pelo celular não entra no app sozinho", r.status_code == 302 and "/login" in r.location)
+r = cliente.post("/recuperar-senha", data={"nova": "1234", "confirmar": "1234"})
+conferir("senha nova fraca é recusada", "pelo menos 8" in texto(r))
+r = cliente.post("/recuperar-senha", data={"nova": "Nova&Senha99", "confirmar": "Outra&Coisa1"})
+conferir("as duas senhas precisam ser iguais", "não são iguais" in texto(r))
+r = cliente.post("/recuperar-senha", data={"nova": "Nova&Senha99", "confirmar": "Nova&Senha99"}, follow_redirects=True)
+conferir("cria a senha nova e entra no app", "Senha nova criada" in texto(r) and "Olá, Dani" in texto(r))
+conferir("a senha antiga deixa de valer e a nova passa a valer",
+         not meubolso.senha_atual_confere(FORTE) and meubolso.senha_atual_confere("Nova&Senha99"))
+conferir("os dados continuam lá", banco.contar_lancamentos() > 0)
+
+cliente.get("/sair")
+r = cliente.post("/recuperar-senha", data={"nova": "Mais&Uma777", "confirmar": "Mais&Uma777"})
+conferir("depois de usada, a liberação acaba", r.status_code == 302 and meubolso.senha_atual_confere("Nova&Senha99"))
+
+with cliente.session_transaction() as sessao:
+    sessao["redefinir_ate"] = time.time() - 1
+r = cliente.get("/recuperar-senha", follow_redirects=True)
+conferir("a liberação vale só por alguns minutos", "tempo para criar a senha nova acabou" in texto(r))
+os.environ.pop("MEUBOLSO_TOKEN_RAPIDO")
+
 print()
 if falhas:
     print(f"{len(falhas)} verificação(ões) falharam.")
