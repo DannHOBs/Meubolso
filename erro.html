@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block conteudo %}
+<div class="cartao">
+    <div class="vazio">
+        <span class="grande">🤔</span>
+        {{ mensagem }}
+    </div>
+    <a class="botao botao-bloco" href="{{ url_for('inicio') }}">Voltar ao início</a>
+</div>
+{% endblock %}

@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block conteudo %}
+
+<div class="cartao">
+
+    <a class="linha-menu" href="{{ url_for('categorias') }}">
+        <div class="icone-redondo fundo-azul">🏷️</div>
+        <div class="texto"><strong>Categorias</strong><span class="sub">Crie, renomeie ou oculte</span></div>
+        <span class="seta-menu">›</span>
+    </a>
+
+    <a class="linha-menu" href="{{ url_for('orcamento') }}">
+        <div class="icone-redondo fundo-verde">🎯</div>
+        <div class="texto"><strong>Orçamento</strong><span class="sub">Limite mensal por categoria</span></div>
+        <span class="seta-menu">›</span>
+    </a>
+
+    <a class="linha-menu" href="{{ url_for('saldo_inicial') }}">
+        <div class="icone-redondo fundo-azul">🏦</div>
+        <div class="texto"><strong>Saldo inicial</strong><span class="sub">Quanto você tinha antes de usar o app</span></div>
+        <span class="seta-menu">›</span>
+    </a>
+
+    <a class="linha-menu" href="{{ url_for('recorrentes') }}">
+        <div class="icone-redondo fundo-ambar">🔁</div>
+        <div class="texto"><strong>Contas recorrentes</strong><span class="sub">Aluguel, internet, assinaturas...</span></div>
+        <span class="seta-menu">›</span>
+    </a>
+
+    <a class="linha-menu" href="{{ url_for('tela_relatorio') }}">
+        <div class="icone-redondo fundo-azul">📄</div>
+        <div class="texto"><strong>Relatório em PDF</strong><span class="sub">Resumo do mês para guardar ou imprimir</span></div>
+        <span class="seta-menu">›</span>
+    </a>
+
+    <a class="linha-menu" href="{{ url_for('tela_backup') }}">
+        <div class="icone-redondo fundo-verde">💾</div>
+        <div class="texto"><strong>Backup</strong><span class="sub">Salvar e restaurar seus dados</span></div>
+        <span class="seta-menu">›</span>
+    </a>
+
+    {% if rapido_disponivel %}
+        <a class="linha-menu" href="{{ url_for('desbloqueio_rapido') }}">
+            <div class="icone-redondo fundo-verde">🔓</div>
+            <div class="texto">
+                <strong>Desbloqueio rápido</strong>
+                <span class="sub">{{ 'Ligado' if rapido_ativo else 'Desligado' }} · digital, rosto ou PIN do celular</span>
+            </div>
+            <span class="seta-menu">›</span>
+        </a>
+    {% endif %}
+
+    <a class="linha-menu" href="{{ url_for('alterar_senha') }}">
+        <div class="icone-redondo fundo-ambar">🔑</div>
+        <div class="texto"><strong>Alterar senha</strong><span class="sub">Troque a senha de acesso</span></div>
+        <span class="seta-menu">›</span>
+    </a>
+
+    <a class="linha-menu" href="{{ url_for('sair') }}">
+        <div class="icone-redondo fundo-cinza">🚪</div>
+        <div class="texto"><strong>Sair</strong><span class="sub">Bloquear o app agora</span></div>
+        <span class="seta-menu">›</span>
+    </a>
+
+</div>
+
+<div class="cartao">
+    <h2>Aparência</h2>
+
+    <form method="post" action="{{ url_for('mudar_tema') }}" class="abas-tipo" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 0;">
+        {% for valor, rotulo in [('auto', '📱 Automático'), ('claro', '☀️ Claro'), ('escuro', '🌙 Escuro')] %}
+            <button type="submit" name="tema" value="{{ valor }}"
+                    class="botao botao-pequeno {{ '' if tema == valor else 'botao-cinza' }}">{{ rotulo }}</button>
+        {% endfor %}
+    </form>
+
+    <div class="dica">Automático segue o modo escuro do celular.</div>
+</div>
+
+<div class="rodape">Meu Bolso · {{ versao_build }}</div>
+
+{% endblock %}

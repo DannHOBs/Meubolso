@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block conteudo %}
+
+<div class="alerta alerta-aviso">
+    ⚠️ Se você desinstalar o app ou trocar de celular, os dados somem. Baixe um backup e guarde fora do aparelho
+    (e-mail, nuvem, computador). Ele só abre com a sua senha, então <strong>anote-a em lugar seguro</strong>.
+</div>
+
+{% if antigos_sem_protecao %}
+    <div class="alerta alerta-erro">
+        🔓 Há backups antigos <strong>sem proteção</strong> neste aparelho (veja a lista abaixo).
+        Qualquer pessoa que pegar o arquivo consegue ler tudo. Crie um backup novo e exclua os antigos.
+    </div>
+{% endif %}
+
+<div class="cartao">
+    <div class="cartao-cabecalho">
+        <h2>Backup automático</h2>
+        <span class="selo {{ 'selo-verde' if automatico_ligado else '' }}">{{ 'Ligado' if automatico_ligado else 'Desligado' }}</span>
+    </div>
+
+    <p class="dica" style="margin-top: 0;">
+        Uma vez por semana, quando você entra com a senha, o app cria um backup protegido
+        {% if rapido_disponivel %}e guarda uma cópia em <strong>Downloads/MeuBolso</strong> (ela continua lá mesmo se o app for desinstalado){% endif %}.
+        Entrando só pela digital, o backup espera até a próxima vez que você usar a senha.
+        {% if ultimo_automatico %}<br>Último: {{ ultimo_automatico|data_br }}.{% endif %}
+    </p>
+
+    <form method="post" action="{{ url_for('backup_automatico_web') }}" style="margin: 0;">
+        {% if automatico_ligado %}
+            <button type="submit" name="acao" value="desligar" class="botao botao-cinza botao-bloco">Desligar backup automático</button>
+        {% else %}
+            <button type="submit" name="acao" value="ligar" class="botao botao-bloco">Ligar backup automático</button>
+        {% endif %}
+    </form>
+</div>
+
+<div class="cartao">
+    <h2>Criar backup protegido</h2>
+    <p class="dica" style="margin-top: 0;">
+        O arquivo é criptografado com a sua senha atual do app. Para restaurar, será preciso essa mesma senha.
+    </p>
+
+    <form method="post" action="{{ url_for('criar_backup_web') }}" autocomplete="off">
+        <div class="campo">
+            <label for="senha_criar">Digite sua senha para confirmar</label>
+            <input type="password" id="senha_criar" name="senha" required>
+        </div>
+        <button type="submit" class="botao botao-bloco">🔒 Criar backup</button>
+    </form>
+</div>
+
+<div class="cartao">
+    <h2>Backups neste aparelho</h2>
+
+    {% for b in backups %}
+        <div class="item" style="flex-wrap: wrap;">
+            <div class="item-icone {{ 'fundo-verde' if b.protegido else 'fundo-vermelho' }}">{{ '🔒' if b.protegido else '🔓' }}</div>
+
+            <div class="item-corpo">
+                <div class="item-titulo">{{ b.data }}</div>
+                <div class="item-sub">{{ b.tamanho_kb }} KB · {{ 'protegido por senha' if b.protegido else 'SEM proteção (antigo)' }}</div>
+            </div>
+
+            <div class="item-acoes" style="width: 100%; justify-content: flex-end; margin-top: 0;">
+                {% if b.protegido %}
+                    <a class="botao botao-claro botao-pequeno" href="{{ url_for('baixar_backup', nome=b.nome) }}">Baixar</a>
+                {% endif %}
+
+                <form method="post" action="{{ url_for('excluir_backup_web', nome=b.nome) }}"
+                      onsubmit="return confirm('Excluir este backup do aparelho?');" style="margin: 0;">
+                    <button type="submit" class="botao botao-cinza botao-pequeno">Excluir</button>
+                </form>
+            </div>
+        </div>
+    {% else %}
+        <div class="vazio">Nenhum backup ainda.</div>
+    {% endfor %}
+</div>
+
+<div class="cartao">
+    <h2>Restaurar de um arquivo</h2>
+    <p class="dica" style="margin-top: 0;">
+        Escolha um backup (.mbk). Os dados atuais serão trocados pelos do arquivo; antes, guardamos uma cópia protegida
+        dos dados de agora. Depois de restaurar, você entra com a senha que usava quando fez aquela cópia.
+    </p>
+
+    <form method="post" action="{{ url_for('restaurar_backup_web') }}" enctype="multipart/form-data" autocomplete="off"
+          onsubmit="return confirm('Substituir os dados atuais pelos do arquivo escolhido?');">
+
+        <div class="campo">
+            <label for="arquivo">Arquivo de backup</label>
+            <input type="file" id="arquivo" name="arquivo" accept="*/*" required>
+        </div>
+
+        <div class="campo">
+            <label for="senha_backup">Senha do backup</label>
+            <input type="password" id="senha_backup" name="senha_backup">
+            <div class="dica">A senha que o app tinha quando o backup foi criado. Não é preciso para arquivos .db antigos.</div>
+        </div>
+
+        <div class="campo">
+            <label for="senha_atual">Sua senha atual (para confirmar)</label>
+            <input type="password" id="senha_atual" name="senha_atual" required>
+        </div>
+
+        <button type="submit" class="botao botao-cinza botao-bloco">Restaurar backup</button>
+    </form>
+</div>
+
+{% endblock %}

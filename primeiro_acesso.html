@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block conteudo %}
+<form method="post" class="cartao" autocomplete="off" style="margin-top: 18px;">
+
+    <div class="campo">
+        <label for="nome">Como podemos te chamar?</label>
+        <input type="text" id="nome" name="nome" maxlength="40" value="{{ request.form.get('nome', '') }}" required autofocus>
+    </div>
+
+    <div class="campo">
+        <label for="senha">Crie uma senha</label>
+        <input type="password" id="senha" name="senha" minlength="8" required>
+        <div class="dica">
+            Pelo menos 8 caracteres, misturando letras e números (ou uma frase curta).
+            Ela também protege seus backups. Fica só neste aparelho e não há como recuperá-la: anote em lugar seguro.
+        </div>
+    </div>
+
+    <div class="campo">
+        <label for="confirmar">Repita a senha</label>
+        <input type="password" id="confirmar" name="confirmar" minlength="8" required>
+    </div>
+
+    <button type="submit" class="botao botao-bloco">Começar</button>
+
+</form>
+{% endblock %}

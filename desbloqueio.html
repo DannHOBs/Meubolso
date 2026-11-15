@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block conteudo %}
+
+{% if not rapido_disponivel %}
+
+    <div class="alerta alerta-aviso">
+        ℹ️ O desbloqueio rápido só existe no aplicativo para Android. Aqui você entra com a senha do app.
+    </div>
+
+{% else %}
+
+    <div class="alerta">
+        🔓 Em vez de digitar a senha do app, você confirma com o <strong>bloqueio do celular</strong>
+        (digital, rosto ou PIN/padrão). Precisa ter um bloqueio de tela configurado no aparelho.
+        A senha do app continua valendo: é ela que protege os backups.
+    </div>
+
+    <div class="alerta alerta-sucesso">
+        🔑 Com o desbloqueio rápido ligado, se você <strong>esquecer a senha</strong>, a tela de entrada mostra
+        "Esqueci minha senha": basta confirmar pelo celular e criar uma senha nova, sem perder nada.
+    </div>
+
+    <div class="cartao">
+        <h2>Situação: {{ 'ligado' if rapido_ativo else 'desligado' }}</h2>
+
+        {% if rapido_ativo %}
+            <form method="post">
+                <input type="hidden" name="acao" value="desativar">
+                <button type="submit" class="botao botao-cinza botao-bloco">Desligar desbloqueio rápido</button>
+            </form>
+        {% else %}
+            <form method="post" autocomplete="off">
+                <input type="hidden" name="acao" value="ativar">
+
+                <div class="campo">
+                    <label for="senha">Digite sua senha para ligar</label>
+                    <input type="password" id="senha" name="senha" required>
+                </div>
+
+                <button type="submit" class="botao botao-bloco">Ligar desbloqueio rápido</button>
+            </form>
+        {% endif %}
+    </div>
+
+    <div class="dica" style="padding: 0 6px;">
+        Atenção: quem souber desbloquear o seu celular também conseguirá abrir o Meu Bolso.
+        Se outras pessoas conhecem o seu PIN, prefira deixar desligado.
+    </div>
+
+{% endif %}
+
+{% endblock %}

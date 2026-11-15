@@ -1,4 +1,4 @@
-"""Segurança do OffBank: regras de senha e proteção dos backups.
+"""Segurança do Meu Bolso: regras de senha e proteção dos backups.
 
 A proteção do backup usa apenas a biblioteca padrão do Python (assim o APK não
 depende de nenhum pacote extra), com peças conhecidas e combinadas da forma padrão:
@@ -18,9 +18,7 @@ import os
 
 SENHA_MINIMA = 8
 
-MAGIA = b"OFFBANK-BK1\n"
-# Backups feitos quando o app ainda se chamava Meu Bolso continuam abrindo.
-MAGIA_ANTIGA = b"MEUBOLSO-BK1\n"
+MAGIA = b"MEUBOLSO-BK1\n"
 TAM_SAL = 16
 TAM_NONCE = 16
 TAM_ETIQUETA = 32
@@ -51,7 +49,7 @@ _SEQUENCIAS = (
 _COMUNS = {
     "password", "senha123", "senha1234", "senha12345", "senhasenha",
     "brasil123", "brasil1234", "mudar123", "admin123", "abc12345",
-    "123123123", "12341234", "11223344", "offbank", "offbank1", "meubolso", "meubolso1",
+    "123123123", "12341234", "11223344", "meubolso", "meubolso1",
 }
 
 
@@ -106,16 +104,8 @@ def _xor(dados, fluxo):
     return resultado.to_bytes(len(dados), "big")
 
 
-def _magia_do_arquivo(inicio_do_arquivo):
-    """Devolve o cabeçalho que o arquivo usa (novo ou antigo), ou None se não for protegido."""
-    for magia in (MAGIA, MAGIA_ANTIGA):
-        if inicio_do_arquivo.startswith(magia):
-            return magia
-    return None
-
-
 def eh_arquivo_protegido(inicio_do_arquivo):
-    return _magia_do_arquivo(inicio_do_arquivo) is not None
+    return inicio_do_arquivo.startswith(MAGIA)
 
 
 def criptografar(dados, senha):
@@ -133,19 +123,18 @@ def criptografar(dados, senha):
 
 def descriptografar(conteudo, senha):
     """Devolve os dados originais. Levanta SenhaOuArquivoInvalido se não for possível."""
-    magia = _magia_do_arquivo(conteudo) or MAGIA
-    tamanho_cabecalho = len(magia) + 3 + TAM_SAL + TAM_NONCE
+    tamanho_cabecalho = len(MAGIA) + 3 + TAM_SAL + TAM_NONCE
 
     if len(conteudo) < tamanho_cabecalho + TAM_ETIQUETA or not eh_arquivo_protegido(conteudo):
-        raise SenhaOuArquivoInvalido("Esse arquivo não é um backup protegido do OffBank.")
+        raise SenhaOuArquivoInvalido("Esse arquivo não é um backup protegido do Meu Bolso.")
 
-    n_log2, r, p = conteudo[len(magia)], conteudo[len(magia) + 1], conteudo[len(magia) + 2]
+    n_log2, r, p = conteudo[len(MAGIA)], conteudo[len(MAGIA) + 1], conteudo[len(MAGIA) + 2]
 
     # Só aceita custos razoáveis (um arquivo malicioso não pode travar o celular).
     if not (14 <= n_log2 <= 16 and r == 8 and p == 1):
         raise SenhaOuArquivoInvalido("O arquivo de backup está danificado.")
 
-    inicio_sal = len(magia) + 3
+    inicio_sal = len(MAGIA) + 3
     sal = conteudo[inicio_sal:inicio_sal + TAM_SAL]
     nonce = conteudo[inicio_sal + TAM_SAL:tamanho_cabecalho]
     cabecalho = conteudo[:tamanho_cabecalho]

@@ -1,4 +1,4 @@
-# OffBank
+# Meu Bolso
 
 App de finanças pessoais (nome de trabalho): receitas, despesas, categorias editáveis, resumo do mês e backup.
 Mesma base do FINANCBETEL (Flask + SQLite + APK pelo GitHub), mas para uso pessoal, com um único usuário.
@@ -61,7 +61,7 @@ Mesma base do FINANCBETEL (Flask + SQLite + APK pelo GitHub), mas para uso pesso
 
 - **Valores com ponto de milhar:** "1.500" agora é lido como R$ 1.500,00 (antes virava R$ 1,50). "12.50" continua R$ 12,50.
 - **Backup automático:** uma vez por semana, ao entrar com a senha, o app cria um backup protegido. No Android, uma cópia vai
-  para **Downloads/OffBank** e continua lá mesmo se o app for desinstalado. Ficam os 4 mais recentes dentro do app.
+  para **Downloads/MeuBolso** e continua lá mesmo se o app for desinstalado. Ficam os 4 mais recentes dentro do app.
   Liga/desliga em Mais → Backup. Quem entra só pela digital ganha o backup na próxima vez que digitar a senha.
 - **Lembrete de backup:** o Início avisa quando não há backup ou o último tem mais de 30 dias.
 - **Pagar com valor e data:** o "✓ Pagar" abre uma tela para ajustar o valor pago (luz, água, juros) e a data do pagamento.
@@ -90,10 +90,10 @@ Mesma base do FINANCBETEL (Flask + SQLite + APK pelo GitHub), mas para uso pesso
 
 1. Crie um repositório PRIVADO no GitHub e envie estes arquivos (mantenha a pasta `.github`).
 2. Aba **Actions → Gerar APK → Run workflow**.
-3. Baixe **OFFBANK-APK** em "Artifacts", descompacte e instale o `app-debug.apk`.
+3. Baixe **MEUBOLSO-APK** em "Artifacts", descompacte e instale o `app-debug.apk`.
 
-O app tem identificador próprio (`br.com.offbank`): instala ao lado do FINANCBETEL, sem mexer nele.
-Desinstalar o OffBank apaga os dados: baixe um backup antes.
+O app tem identificador próprio (`br.com.meubolso`): instala ao lado do FINANCBETEL, sem mexer nele.
+Desinstalar o Meu Bolso apaga os dados: baixe um backup antes.
 Python 3.13 está definido em `android/app/build.gradle` e no workflow; se mudar um, mude o outro.
 
 ## Ideias para as próximas versões
@@ -105,10 +105,3 @@ Python 3.13 está definido em `android/app/build.gradle` e no workflow; se mudar
   (faça backup antes), por isso fica para uma versão planejada.
 - Token interno para todas as chamadas do servidor local (hoje só a entrada rápida usa).
 - Gráficos no Início e relatório do ano.
-
-## Vindo do "Meu Bolso"
-
-O app mudou de nome para OffBank e o identificador mudou de `br.com.meubolso` para `br.com.offbank`.
-Por isso o Android instala o OffBank como um app novo, ao lado do antigo, sem os dados dele.
-Para levar os dados: no app antigo, baixe um backup (aba Mais > Backup); no OffBank, restaure esse arquivo.
-Os backups feitos antes da troca (`.mbk` ou `.db`) continuam abrindo normalmente.

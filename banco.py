@@ -1,4 +1,4 @@
-"""Banco de dados do OffBank (SQLite).
+"""Banco de dados do Meu Bolso (SQLite).
 
 Todos os valores em dinheiro são guardados em CENTAVOS (número inteiro),
 para evitar erros de arredondamento. As datas são guardadas como AAAA-MM-DD.
@@ -9,7 +9,7 @@ import os
 import sqlite3
 import uuid
 
-NOME_BANCO = os.getenv("OFFBANK_DB", "offbank.db")
+NOME_BANCO = os.getenv("MEUBOLSO_DB", "meubolso.db")
 
 CATEGORIAS_PADRAO = [
     ("receita", "Salário", "💼"),

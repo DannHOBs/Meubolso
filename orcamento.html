@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% from "_macros.html" import barra_orcamento %}
+
+{% block topo %}
+    {% include "_topo_mes.html" %}
+{% endblock %}
+
+{% block conteudo %}
+
+<div class="sobe">
+
+    {% if total_limite %}
+        <div class="cartao">
+            <div class="rotulo-pequeno">Gasto nas categorias com limite</div>
+            <div class="valor-grande {{ 'negativo' if total_gasto > total_limite else 'positivo' }}">{{ total_gasto|moeda }}</div>
+            <div class="dica">Soma dos limites: <strong class="din">{{ total_limite|moeda }}</strong></div>
+        </div>
+    {% else %}
+        <div class="alerta">
+            🎯 Defina um limite mensal nas categorias em que você quer se controlar.
+            O Início avisa quando você estiver chegando perto.
+        </div>
+    {% endif %}
+
+    <div class="cartao">
+        {% for o in itens %}
+
+            <div style="padding: 6px 0 14px; {% if not loop.last %}border-bottom: 1px solid var(--linha); margin-bottom: 12px;{% endif %}">
+
+                {% if o.limite %}
+                    {{ barra_orcamento(o) }}
+                {% else %}
+                    <div class="categoria-topo">
+                        <span>{{ o.icone }} {{ o.nome }}</span>
+                        <strong class="din">{{ o.gasto|moeda }}</strong>
+                    </div>
+                    <div class="dica" style="margin-top: 2px;">Sem limite definido</div>
+                {% endif %}
+
+                <form method="post" action="{{ url_for('orcamento_definir', id_categoria=o.id) }}"
+                      style="display: flex; gap: 8px; margin: 8px 0 0;">
+                    <input type="hidden" name="mes" value="{{ mes }}">
+                    <input type="hidden" name="ano" value="{{ ano }}">
+
+                    <input type="text" name="limite" inputmode="decimal" aria-label="Limite mensal"
+                           placeholder="Limite mensal (R$)"
+                           value="{{ (o.limite // 100) ~ ',' ~ '%02d'|format(o.limite % 100) if o.limite else '' }}"
+                           style="flex: 1; min-width: 0;">
+
+                    <button type="submit" class="botao botao-claro botao-pequeno">{{ 'Salvar' if o.limite else 'Definir' }}</button>
+
+                    {% if o.limite %}
+                        <button type="submit" name="acao" value="remover" class="botao botao-cinza botao-pequeno">Remover</button>
+                    {% endif %}
+                </form>
+
+            </div>
+
+        {% endfor %}
+    </div>
+
+</div>
+
+{% endblock %}

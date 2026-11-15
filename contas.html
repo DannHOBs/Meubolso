@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% from "_macros.html" import conta %}
+
+{% block topo %}
+    {% include "_topo_mes.html" %}
+{% endblock %}
+
+{% block conteudo %}
+
+<div class="sobe">
+
+    <div class="grade2" style="margin-bottom: 14px;">
+        <div class="metrica">
+            <div class="icone-redondo fundo-ambar">⏳</div>
+            <div>
+                <div class="rotulo-pequeno">A pagar no mês</div>
+                <div class="valor-medio">{{ a_pagar|moeda }}</div>
+            </div>
+        </div>
+
+        <div class="metrica">
+            <div class="icone-redondo fundo-verde">✅</div>
+            <div>
+                <div class="rotulo-pequeno">Já pago</div>
+                <div class="valor-medio positivo">{{ ja_pago|moeda }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="linha-botoes" style="margin-bottom: 14px;">
+        <a class="botao" href="{{ url_for('conta_nova') }}">➕ Nova conta</a>
+        <a class="botao botao-claro" href="{{ url_for('recorrentes') }}">🔁 Recorrentes</a>
+    </div>
+
+    {% if atrasadas %}
+        <div class="cartao">
+            <div class="cartao-cabecalho">
+                <h2>⚠️ Atrasadas</h2>
+                <span class="selo selo-vermelho din">{{ total_atrasadas|moeda }}</span>
+            </div>
+
+            {% for c in atrasadas %}
+                {{ conta(c, acoes=True) }}
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="cartao">
+        <h2>{{ nome_mes }} de {{ ano }}</h2>
+
+        {% for c in itens %}
+            {{ conta(c, acoes=True) }}
+        {% else %}
+            <div class="vazio">
+                <span class="grande">📅</span>
+                Nenhuma conta com vencimento neste mês.<br>
+                Toque em <strong>Nova conta</strong> para cadastrar.
+            </div>
+        {% endfor %}
+    </div>
+
+</div>
+
+{% endblock %}

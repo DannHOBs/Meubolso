@@ -1,4 +1,4 @@
-"""Relatório mensal em PDF do OffBank.
+"""Relatório mensal em PDF do Meu Bolso.
 
 Recebe os números já prontos (centavos e datas AAAA-MM-DD) e devolve os bytes do PDF.
 Não conhece o banco de dados: quem monta os dados é o app.py.
@@ -235,7 +235,7 @@ def gerar_pdf(dados):
         canvas.saveState()
         canvas.setFont("Helvetica", 8)
         canvas.setFillColor(colors.HexColor("#64748b"))
-        canvas.drawString(2 * cm, 1.1 * cm, f"OffBank · gerado em {gerado}")
+        canvas.drawString(2 * cm, 1.1 * cm, f"Meu Bolso · gerado em {gerado}")
         canvas.drawRightString(A4[0] - 2 * cm, 1.1 * cm, f"Página {documento.page}")
         canvas.restoreState()
 
@@ -243,7 +243,7 @@ def gerar_pdf(dados):
     documento = SimpleDocTemplate(
         memoria, pagesize=A4,
         leftMargin=2 * cm, rightMargin=2 * cm, topMargin=1.8 * cm, bottomMargin=1.9 * cm,
-        title=f"Relatório de {mes_nome} de {dados['ano']}", author="OffBank",
+        title=f"Relatório de {mes_nome} de {dados['ano']}", author="Meu Bolso",
     )
 
     historia = [
