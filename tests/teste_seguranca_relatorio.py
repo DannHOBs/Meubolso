@@ -12,16 +12,16 @@ import tempfile
 from datetime import date, timedelta
 
 pasta = tempfile.mkdtemp()
-os.environ["MEUBOLSO_DB"] = os.path.join(pasta, "teste.db")
-os.environ["MEUBOLSO_BACKUPS"] = os.path.join(pasta, "backups")
-os.environ["MEUBOLSO_SECRET_KEY"] = "chave-de-teste"
-os.environ.pop("MEUBOLSO_TOKEN_RAPIDO", None)
+os.environ["OFFBANK_DB"] = os.path.join(pasta, "teste.db")
+os.environ["OFFBANK_BACKUPS"] = os.path.join(pasta, "backups")
+os.environ["OFFBANK_SECRET_KEY"] = "chave-de-teste"
+os.environ.pop("OFFBANK_TOKEN_RAPIDO", None)
 
 RAIZ = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
-os.environ["MEUBOLSO_TEMPLATES"] = str(RAIZ / "templates")
+os.environ["OFFBANK_TEMPLATES"] = str(RAIZ / "templates")
 
-import app as meubolso  # noqa: E402
+import app as offbank  # noqa: E402
 import banco  # noqa: E402
 import relatorio  # noqa: E402
 import seguranca  # noqa: E402
@@ -55,14 +55,14 @@ NOVA = "Outra&Senha77"
 
 print("Conta criada em versão antiga (senha curta)")
 banco.criar_usuario("Dani", generate_password_hash("1234"))
-cliente = meubolso.app.test_client()
+cliente = offbank.app.test_client()
 
 r = cliente.post("/login", data={"senha": "1234"}, follow_redirects=True)
 conferir("a senha curta antiga ainda entra", r.status_code == 200 and "Olá, Dani" in texto(r))
 conferir("o início avisa que a senha é curta", "Sua senha é curta" in texto(r))
 
 r = cliente.post("/backup/criar", data={"senha": "1234"}, follow_redirects=True)
-conferir("com senha curta, o backup é recusado", "curta ou fácil demais" in texto(r) and not meubolso.backup.listar_backups())
+conferir("com senha curta, o backup é recusado", "curta ou fácil demais" in texto(r) and not offbank.backup.listar_backups())
 r = cliente.post("/backup/restaurar", data={"arquivo": (io.BytesIO(b"x"), "x.mbk"), "senha_backup": "", "senha_atual": "1234"},
                  content_type="multipart/form-data", follow_redirects=True)
 conferir("com senha curta, restaurar também pede troca", "curta ou fácil demais" in texto(r))
@@ -71,11 +71,11 @@ r = cliente.post("/senha", data={"atual": "1234", "nova": FORTE, "confirmar": FO
 conferir("trocar para senha forte funciona", "Senha alterada" in texto(r))
 conferir("o aviso de senha curta some", "Sua senha é curta" not in texto(cliente.get("/")))
 cliente.post("/backup/criar", data={"senha": FORTE})
-conferir("com senha forte, o backup é criado", len(meubolso.backup.listar_backups()) == 1)
+conferir("com senha forte, o backup é criado", len(offbank.backup.listar_backups()) == 1)
 
 print("Backup antigo sem proteção na lista")
-antigo = os.path.join(os.environ["MEUBOLSO_BACKUPS"], "backup_2026-01-01_10-00-00.db")
-meubolso.backup._copiar_banco_para(antigo)
+antigo = os.path.join(os.environ["OFFBANK_BACKUPS"], "backup_2026-01-01_10-00-00.db")
+offbank.backup._copiar_banco_para(antigo)
 html = texto(cliente.get("/backup"))
 conferir("a tela avisa sobre backups sem proteção", "SEM proteção" in html and "sem proteção" in html)
 nome_antigo = "backup_2026-01-01_10-00-00.db"
@@ -98,14 +98,14 @@ conferir("e continua precisando de senha", r.status_code == 302 and "/login" in 
 
 print("Desbloqueio rápido (dentro do Android)")
 TOKEN = "a" * 64
-os.environ["MEUBOLSO_TOKEN_RAPIDO"] = TOKEN
+os.environ["OFFBANK_TOKEN_RAPIDO"] = TOKEN
 cliente.post("/login", data={"senha": FORTE})
 conferir("o menu Mais mostra a opção (Desligado)", "Desbloqueio rápido" in texto(cliente.get("/mais")) and "Desligado" in texto(cliente.get("/mais")))
 
 r = cliente.post("/desbloqueio-rapido", data={"acao": "ativar", "senha": "errada"}, follow_redirects=True)
-conferir("ligar exige a senha certa", "Senha incorreta" in texto(r) and not meubolso.rapido_ativo())
+conferir("ligar exige a senha certa", "Senha incorreta" in texto(r) and not offbank.rapido_ativo())
 r = cliente.post("/desbloqueio-rapido", data={"acao": "ativar", "senha": FORTE}, follow_redirects=True)
-conferir("liga o desbloqueio rápido", "Desbloqueio rápido ligado" in texto(r) and meubolso.rapido_ativo())
+conferir("liga o desbloqueio rápido", "Desbloqueio rápido ligado" in texto(r) and offbank.rapido_ativo())
 
 cliente.get("/sair")
 conferir("a tela de login oferece o botão do bloqueio do celular", "Entrar com o bloqueio do celular" in texto(cliente.get("/login")))
@@ -124,7 +124,7 @@ cliente.get("/sair")
 r = cliente.get("/entrada-rapida?t=" + TOKEN)
 conferir("desligado, nem o token certo entra", r.status_code == 302 and "/login" in r.location and cliente.get("/").status_code == 302)
 conferir("e o botão some da tela de login", "Entrar com o bloqueio do celular" not in texto(cliente.get("/login")))
-os.environ.pop("MEUBOLSO_TOKEN_RAPIDO")
+os.environ.pop("OFFBANK_TOKEN_RAPIDO")
 cliente.post("/login", data={"senha": FORTE})
 
 print("Relatório em PDF")
@@ -157,7 +157,7 @@ conferir("o menu Mais tem o Relatório em PDF", "Relatório em PDF" in texto(cli
 
 r = cliente.get("/relatorio/pdf", query_string=mes_ano)
 conferir("PDF do mês é válido e vem como download", r.status_code == 200 and r.data.startswith(b"%PDF")
-         and f"MeuBolso_{hoje.year}-{hoje.month:02d}.pdf" in r.headers.get("Content-Disposition", ""))
+         and f"OffBank_{hoje.year}-{hoje.month:02d}.pdf" in r.headers.get("Content-Disposition", ""))
 
 with open(os.path.join(pasta, "exemplo_relatorio.pdf"), "wb") as arquivo:
     arquivo.write(r.data)
@@ -170,9 +170,9 @@ if pypdf:
     conferir("PDF mostra o orçamento estourado", "Orçamento do mês" in conteudo and "Estourado" in conteudo and "R$ 400,00" in conteudo)
     conferir("PDF lista as contas (com parcelas)", "Aluguel" in conteudo and "Sofá (1/2)" in conteudo and "Vence hoje" in conteudo)
     conferir("PDF lista os lançamentos, inclusive com caracteres especiais", "Salário de outubro" in conteudo and "Feira & <b>padaria</b>" in conteudo)
-    conferir("PDF tem rodapé com página", "Página 1" in conteudo and "Meu Bolso" in conteudo)
+    conferir("PDF tem rodapé com página", "Página 1" in conteudo and "OffBank" in conteudo)
 
-mes_passado = meubolso.mes_vizinho(hoje.month, hoje.year, -1)
+mes_passado = offbank.mes_vizinho(hoje.month, hoje.year, -1)
 r = cliente.get("/relatorio/pdf", query_string={"mes": mes_passado[0], "ano": mes_passado[1]})
 conferir("outro mês gera outro PDF", r.status_code == 200 and f"{mes_passado[1]}-{mes_passado[0]:02d}" in r.headers.get("Content-Disposition", ""))
 r = cliente.get("/relatorio/pdf", query_string={"mes": "13", "ano": "abc"})

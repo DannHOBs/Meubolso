@@ -13,16 +13,16 @@ import time
 from datetime import date, timedelta
 
 pasta = tempfile.mkdtemp()
-os.environ["MEUBOLSO_DB"] = os.path.join(pasta, "teste.db")
-os.environ["MEUBOLSO_BACKUPS"] = os.path.join(pasta, "backups")
-os.environ["MEUBOLSO_SECRET_KEY"] = "chave-de-teste"
-os.environ.pop("MEUBOLSO_TOKEN_RAPIDO", None)
+os.environ["OFFBANK_DB"] = os.path.join(pasta, "teste.db")
+os.environ["OFFBANK_BACKUPS"] = os.path.join(pasta, "backups")
+os.environ["OFFBANK_SECRET_KEY"] = "chave-de-teste"
+os.environ.pop("OFFBANK_TOKEN_RAPIDO", None)
 
 RAIZ = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
-os.environ["MEUBOLSO_TEMPLATES"] = str(RAIZ / "templates")
+os.environ["OFFBANK_TEMPLATES"] = str(RAIZ / "templates")
 
-import app as meubolso  # noqa: E402
+import app as offbank  # noqa: E402
 import backup  # noqa: E402
 import banco  # noqa: E402
 
@@ -53,10 +53,10 @@ for digitado, esperado in [
     ("1.500", 150000), ("2.000.000", 200000000), ("1.500,00", 150000), ("12.50", 1250),
     ("1.5", 150), ("25,90", 2590), ("R$ 1.234,56", 123456), ("10", 1000), ("0", None), ("1.50.0", None),
 ]:
-    conferir(f"'{digitado}' vira {esperado} centavos", meubolso.ler_valor(digitado) == esperado)
+    conferir(f"'{digitado}' vira {esperado} centavos", offbank.ler_valor(digitado) == esperado)
 
 print("Primeiro acesso e lembrete de backup")
-cliente = meubolso.app.test_client()
+cliente = offbank.app.test_client()
 cliente.post("/primeiro-acesso", data={"nome": "Dani", "senha": FORTE, "confirmar": FORTE})
 conferir("primeiro acesso não cria backup automático (ainda não há dados)", not automaticos())
 
@@ -68,7 +68,7 @@ cat_mercado = next(c for c in banco.listar_categorias("despesa") if c["nome"] ==
 cat_salario = next(c for c in banco.listar_categorias("receita") if c["nome"] == "Salário")
 cliente.post("/novo/receita", data={"valor": "2.000", "categoria_id": cat_salario["id"], "data": data_hoje})
 conferir("receita digitada como '2.000' fica com R$ 2.000,00",
-         banco.totais_do_periodo(*meubolso.limites_do_mes(hoje.month, hoje.year))[0] == 200000)
+         banco.totais_do_periodo(*offbank.limites_do_mes(hoje.month, hoje.year))[0] == 200000)
 
 r = cliente.get("/")
 conferir("com lançamentos e sem backup, o Início lembra de fazer backup",
@@ -86,7 +86,7 @@ conferir("entrar de novo na mesma semana não cria outro", len(automaticos()) ==
 
 primeiro = automaticos()[0]
 with open(os.path.join(backup.PASTA_BACKUPS, primeiro), "rb") as arquivo:
-    conferir("o automático é protegido por senha", arquivo.read().startswith(meubolso.seguranca.MAGIA))
+    conferir("o automático é protegido por senha", arquivo.read().startswith(offbank.seguranca.MAGIA))
 
 # Simula as semanas seguintes (os nomes têm data e hora; espera 1 s entre eles para não repetir).
 for semana in range(1, 6):
@@ -112,22 +112,22 @@ conferir("dá para ligar de novo", banco.obter_config("backup_automatico") == "1
 
 print("Bloqueio de senha que não zera ao fechar o app")
 cliente.get("/sair")
-for _ in range(meubolso.TENTATIVAS_MAXIMAS):
+for _ in range(offbank.TENTATIVAS_MAXIMAS):
     cliente.post("/login", data={"senha": "errada"})
-recarregado = meubolso._carregar_falhas_login()
+recarregado = offbank._carregar_falhas_login()
 conferir("o bloqueio fica guardado no banco (vale depois de reabrir o app)", recarregado["bloqueado_ate"] > time.time())
-meubolso._falhas_login.update(bloqueado_ate=time.time() + 10 * 3600)
+offbank._falhas_login.update(bloqueado_ate=time.time() + 10 * 3600)
 r = cliente.post("/login", data={"senha": "errada"})
 conferir("se o relógio voltou, o bloqueio não passa de 60 segundos",
-         meubolso._falhas_login["bloqueado_ate"] <= time.time() + meubolso.BLOQUEIO_SEGUNDOS)
-meubolso._falhas_login.update(quantas=0, bloqueado_ate=0.0)
+         offbank._falhas_login["bloqueado_ate"] <= time.time() + offbank.BLOQUEIO_SEGUNDOS)
+offbank._falhas_login.update(quantas=0, bloqueado_ate=0.0)
 r = cliente.post("/login", data={"senha": FORTE})
 conferir("depois do bloqueio, a senha certa entra e zera o contador",
-         r.status_code == 302 and meubolso._carregar_falhas_login() == {"quantas": 0, "bloqueado_ate": 0.0})
+         r.status_code == 302 and offbank._carregar_falhas_login() == {"quantas": 0, "bloqueado_ate": 0.0})
 
 print("Pagar conta com valor e data")
 cliente.post("/contas/nova", data={"descricao": "Luz", "valor": "150,00", "categoria_id": cat_mercado["id"], "vencimento": data_hoje})
-luz = next(c for c in banco.listar_contas_do_periodo(*meubolso.limites_do_mes(hoje.month, hoje.year)) if c["descricao"] == "Luz")
+luz = next(c for c in banco.listar_contas_do_periodo(*offbank.limites_do_mes(hoje.month, hoje.year)) if c["descricao"] == "Luz")
 
 r = cliente.get(f"/contas/{luz['id']}/pagar")
 conferir("a tela de pagar mostra o valor da conta e a data de hoje",
@@ -146,12 +146,12 @@ r = cliente.get(f"/contas/{luz['id']}/pagar", follow_redirects=True)
 conferir("conta já paga não abre a tela de pagar de novo", "já estava paga" in texto(r))
 
 print("Saldo inicial")
-inicio, fim = meubolso.limites_do_mes(hoje.month, hoje.year)
+inicio, fim = offbank.limites_do_mes(hoje.month, hoje.year)
 saldo_antes = banco.saldo_ate(fim)
 r = cliente.post("/saldo-inicial", data={"valor": "1.000,00"}, follow_redirects=True)
 conferir("define o saldo inicial", "Saldo inicial: R$ 1.000,00" in texto(r) and banco.saldo_ate(fim) == saldo_antes + 100000)
 r = cliente.get("/", query_string=mes_ano)
-conferir("o saldo acumulado do Início soma o saldo inicial", meubolso.formatar_moeda(saldo_antes + 100000) in texto(r))
+conferir("o saldo acumulado do Início soma o saldo inicial", offbank.formatar_moeda(saldo_antes + 100000) in texto(r))
 cliente.post("/saldo-inicial", data={"valor": "250,50", "negativo": "1"})
 conferir("aceita saldo inicial negativo", banco.obter_saldo_inicial() == -25050)
 r = cliente.get("/saldo-inicial")
@@ -190,7 +190,7 @@ r = cliente.get("/login")
 conferir("no computador (sem Android), a tela de entrada não oferece recuperar", "Esqueci minha senha" not in texto(r))
 
 TOKEN = "b" * 64
-os.environ["MEUBOLSO_TOKEN_RAPIDO"] = TOKEN
+os.environ["OFFBANK_TOKEN_RAPIDO"] = TOKEN
 r = cliente.get("/login")
 conferir("com o desbloqueio rápido desligado, a entrada sugere ligá-lo", "se esquecer a senha" in texto(r) and "Esqueci minha senha" not in texto(r))
 r = cliente.get("/recuperar-senha?t=" + TOKEN, follow_redirects=True)
@@ -206,7 +206,7 @@ r = cliente.get("/recuperar-senha?t=" + "c" * 64, follow_redirects=True)
 conferir("código errado é recusado", "Não foi possível confirmar" in texto(r))
 r = cliente.post("/recuperar-senha", data={"nova": "Nova&Senha99", "confirmar": "Nova&Senha99"})
 conferir("não dá para trocar a senha direto, sem confirmar", banco.obter_config("senha_fraca") is not None and r.status_code == 302 and "/login" in r.location)
-conferir("e a senha antiga continua valendo", meubolso.senha_atual_confere(FORTE))
+conferir("e a senha antiga continua valendo", offbank.senha_atual_confere(FORTE))
 
 r = cliente.get("/recuperar-senha?t=" + TOKEN)
 conferir("com o código certo, vai para a tela de senha nova (sem o código no endereço)",
@@ -222,18 +222,18 @@ conferir("as duas senhas precisam ser iguais", "não são iguais" in texto(r))
 r = cliente.post("/recuperar-senha", data={"nova": "Nova&Senha99", "confirmar": "Nova&Senha99"}, follow_redirects=True)
 conferir("cria a senha nova e entra no app", "Senha nova criada" in texto(r) and "Olá, Dani" in texto(r))
 conferir("a senha antiga deixa de valer e a nova passa a valer",
-         not meubolso.senha_atual_confere(FORTE) and meubolso.senha_atual_confere("Nova&Senha99"))
+         not offbank.senha_atual_confere(FORTE) and offbank.senha_atual_confere("Nova&Senha99"))
 conferir("os dados continuam lá", banco.contar_lancamentos() > 0)
 
 cliente.get("/sair")
 r = cliente.post("/recuperar-senha", data={"nova": "Mais&Uma777", "confirmar": "Mais&Uma777"})
-conferir("depois de usada, a liberação acaba", r.status_code == 302 and meubolso.senha_atual_confere("Nova&Senha99"))
+conferir("depois de usada, a liberação acaba", r.status_code == 302 and offbank.senha_atual_confere("Nova&Senha99"))
 
 with cliente.session_transaction() as sessao:
     sessao["redefinir_ate"] = time.time() - 1
 r = cliente.get("/recuperar-senha", follow_redirects=True)
 conferir("a liberação vale só por alguns minutos", "tempo para criar a senha nova acabou" in texto(r))
-os.environ.pop("MEUBOLSO_TOKEN_RAPIDO")
+os.environ.pop("OFFBANK_TOKEN_RAPIDO")
 
 print()
 if falhas:

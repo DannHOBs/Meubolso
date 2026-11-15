@@ -13,15 +13,15 @@ import tempfile
 from datetime import date
 
 pasta = tempfile.mkdtemp()
-os.environ["MEUBOLSO_DB"] = os.path.join(pasta, "teste.db")
-os.environ["MEUBOLSO_BACKUPS"] = os.path.join(pasta, "backups")
-os.environ["MEUBOLSO_SECRET_KEY"] = "chave-de-teste"
+os.environ["OFFBANK_DB"] = os.path.join(pasta, "teste.db")
+os.environ["OFFBANK_BACKUPS"] = os.path.join(pasta, "backups")
+os.environ["OFFBANK_SECRET_KEY"] = "chave-de-teste"
 
 RAIZ = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
-os.environ["MEUBOLSO_TEMPLATES"] = str(RAIZ / "templates")
+os.environ["OFFBANK_TEMPLATES"] = str(RAIZ / "templates")
 
-import app as meubolso  # noqa: E402
+import app as offbank  # noqa: E402
 import backup  # noqa: E402
 import banco  # noqa: E402
 
@@ -50,7 +50,7 @@ def contas_no_banco(**filtros):
     return linhas
 
 
-cliente = meubolso.app.test_client()
+cliente = offbank.app.test_client()
 cliente.post("/primeiro-acesso", data={"nome": "Dani", "senha": "Gato&Lua2026", "confirmar": "Gato&Lua2026"})
 
 hoje = date.today()
@@ -163,12 +163,12 @@ r = cliente.post(f"/orcamento/{cat_salario['id']}/definir", data={"limite": "100
 conferir("categoria de receita não aceita limite", r.status_code == 404)
 
 cliente.post(f"/orcamento/{cat_mercado['id']}/definir", data={"limite": "", "acao": "remover"})
-conferir("remover tira o limite", not any(o["limite"] for o in meubolso.orcamento_do_periodo(*meubolso.limites_do_mes(hoje.month, hoje.year))))
+conferir("remover tira o limite", not any(o["limite"] for o in offbank.orcamento_do_periodo(*offbank.limites_do_mes(hoje.month, hoje.year))))
 html = texto(cliente.get("/", query_string=mes_ano))
 conferir("sem limites, o cartão some de novo", "Orçamento do mês" not in html)
 
 cliente.post(f"/orcamento/{cat_mercado['id']}/definir", data={"limite": "500"})
-mes_passado = meubolso.mes_vizinho(hoje.month, hoje.year, -1)
+mes_passado = offbank.mes_vizinho(hoje.month, hoje.year, -1)
 html = texto(cliente.get("/orcamento", query_string={"mes": mes_passado[0], "ano": mes_passado[1]}))
 conferir("o limite vale em todos os meses (mês passado, sem gasto)", "Restam R$ 500,00" in html)
 

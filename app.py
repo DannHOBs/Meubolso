@@ -34,8 +34,8 @@ try:
 except ImportError:
     VERSAO_BUILD = "versão local"
 
-app = Flask(__name__, template_folder=os.getenv("MEUBOLSO_TEMPLATES", "templates"))
-app.secret_key = os.getenv("MEUBOLSO_SECRET_KEY") or secrets.token_hex(32)
+app = Flask(__name__, template_folder=os.getenv("OFFBANK_TEMPLATES", "templates"))
+app.secret_key = os.getenv("OFFBANK_SECRET_KEY") or secrets.token_hex(32)
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
@@ -144,7 +144,7 @@ app.jinja_env.filters["data_br"] = formatar_data
 
 def rapido_disponivel():
     """O desbloqueio pelo bloqueio do celular só existe dentro do app Android."""
-    return bool(os.getenv("MEUBOLSO_TOKEN_RAPIDO"))
+    return bool(os.getenv("OFFBANK_TOKEN_RAPIDO"))
 
 
 def rapido_ativo():
@@ -287,7 +287,7 @@ def primeiro_acesso():
     return render_template(
         "primeiro_acesso.html",
         sem_menu=True,
-        titulo_pagina="Bem-vindo ao Meu Bolso",
+        titulo_pagina="Bem-vindo ao OffBank",
         subtitulo_pagina="Crie sua senha para proteger seus dados",
     )
 
@@ -340,7 +340,7 @@ def login():
     return render_template(
         "login.html",
         sem_menu=True,
-        titulo_pagina="Meu Bolso",
+        titulo_pagina="OffBank",
         subtitulo_pagina=f"Olá, {usuario['nome']}! Digite sua senha." if usuario else "",
     )
 
@@ -389,7 +389,7 @@ def senha_atual_confere(senha):
 @app.route("/entrada-rapida")
 def entrada_rapida():
     """Entrada pelo bloqueio do celular. Só o app Android conhece o código (token) desta abertura."""
-    token = os.getenv("MEUBOLSO_TOKEN_RAPIDO", "")
+    token = os.getenv("OFFBANK_TOKEN_RAPIDO", "")
     enviado = request.args.get("t", "")
     usuario = banco.obter_usuario()
 
@@ -414,7 +414,7 @@ def recuperar_senha():
     enviado = request.args.get("t")
 
     if enviado is not None:
-        token = os.getenv("MEUBOLSO_TOKEN_RAPIDO", "")
+        token = os.getenv("OFFBANK_TOKEN_RAPIDO", "")
 
         if token and usuario and rapido_ativo() and hmac.compare_digest(enviado.encode(), token.encode()):
             session.clear()
@@ -1607,7 +1607,7 @@ def baixar_relatorio_pdf():
         BytesIO(pdf),
         mimetype="application/pdf",
         as_attachment=True,
-        download_name=f"MeuBolso_{ano}-{mes:02d}.pdf",
+        download_name=f"OffBank_{ano}-{mes:02d}.pdf",
     )
 
 

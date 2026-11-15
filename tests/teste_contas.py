@@ -13,15 +13,15 @@ import tempfile
 from datetime import date, timedelta
 
 pasta = tempfile.mkdtemp()
-os.environ["MEUBOLSO_DB"] = os.path.join(pasta, "teste.db")
-os.environ["MEUBOLSO_BACKUPS"] = os.path.join(pasta, "backups")
-os.environ["MEUBOLSO_SECRET_KEY"] = "chave-de-teste"
+os.environ["OFFBANK_DB"] = os.path.join(pasta, "teste.db")
+os.environ["OFFBANK_BACKUPS"] = os.path.join(pasta, "backups")
+os.environ["OFFBANK_SECRET_KEY"] = "chave-de-teste"
 
 RAIZ = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
-os.environ["MEUBOLSO_TEMPLATES"] = str(RAIZ / "templates")
+os.environ["OFFBANK_TEMPLATES"] = str(RAIZ / "templates")
 
-import app as meubolso  # noqa: E402
+import app as offbank  # noqa: E402
 import backup  # noqa: E402
 import banco  # noqa: E402
 
@@ -54,7 +54,7 @@ def total_lancamentos():
     return len(banco.listar_lancamentos("2000-01-01", "2100-01-01"))
 
 
-cliente = meubolso.app.test_client()
+cliente = offbank.app.test_client()
 cliente.post("/primeiro-acesso", data={"nome": "Dani", "senha": "Gato&Lua2026", "confirmar": "Gato&Lua2026"})
 
 hoje = date.today()
@@ -73,7 +73,7 @@ def nova_conta(descricao, valor, vencimento, repete=False):
 
 
 def mes_seguinte(data, quantos=1):
-    mes, ano = meubolso.mes_vizinho(data.month, data.year, quantos)
+    mes, ano = offbank.mes_vizinho(data.month, data.year, quantos)
     return mes, ano
 
 

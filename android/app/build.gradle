@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace 'br.com.meubolso'
+    namespace 'br.com.offbank'
     compileSdk 34
 
     defaultConfig {
-        applicationId "br.com.meubolso"
+        applicationId "br.com.offbank"
         minSdk 29
         targetSdk 34
         versionCode 5

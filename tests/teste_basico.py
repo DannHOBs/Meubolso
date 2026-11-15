@@ -1,4 +1,4 @@
-"""Teste automático do Meu Bolso: percorre o uso normal do app e confere os resultados.
+"""Teste automático do OffBank: percorre o uso normal do app e confere os resultados.
 
 Uso (na raiz do projeto):  python tests/teste_basico.py
 Usa um banco temporário; não mexe nos seus dados.
@@ -11,15 +11,15 @@ import sys
 import tempfile
 
 pasta = tempfile.mkdtemp()
-os.environ["MEUBOLSO_DB"] = os.path.join(pasta, "teste.db")
-os.environ["MEUBOLSO_BACKUPS"] = os.path.join(pasta, "backups")
-os.environ["MEUBOLSO_SECRET_KEY"] = "chave-de-teste"
+os.environ["OFFBANK_DB"] = os.path.join(pasta, "teste.db")
+os.environ["OFFBANK_BACKUPS"] = os.path.join(pasta, "backups")
+os.environ["OFFBANK_SECRET_KEY"] = "chave-de-teste"
 
 RAIZ = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
-os.environ["MEUBOLSO_TEMPLATES"] = str(RAIZ / "templates")
+os.environ["OFFBANK_TEMPLATES"] = str(RAIZ / "templates")
 
-import app as meubolso  # noqa: E402
+import app as offbank  # noqa: E402
 import banco  # noqa: E402
 
 falhas = []
@@ -35,7 +35,7 @@ def texto(resposta):
     return resposta.get_data(as_text=True)
 
 
-cliente = meubolso.app.test_client()
+cliente = offbank.app.test_client()
 
 print("Primeiro acesso e login")
 r = cliente.get("/")
@@ -58,12 +58,12 @@ r = cliente.post("/login", data={"senha": "errada"})
 conferir("3 erros bloqueiam por um tempo", "Aguarde" in texto(r))
 r = cliente.post("/login", data={"senha": "Gato&Lua2026"})
 conferir("durante o bloqueio nem a senha certa entra", r.status_code == 200 and "Aguarde" in texto(r))
-meubolso._falhas_login.update(quantas=0, bloqueado_ate=0.0)
+offbank._falhas_login.update(quantas=0, bloqueado_ate=0.0)
 r = cliente.post("/login", data={"senha": "Gato&Lua2026"})
 conferir("depois do bloqueio, a senha certa entra", r.status_code == 302)
 
 print("Lançamentos")
-hoje = meubolso.date.today()
+hoje = offbank.date.today()
 mes_ano = {"mes": hoje.month, "ano": hoje.year}
 data_hoje = hoje.isoformat()
 
@@ -101,7 +101,7 @@ conferir("edita o lançamento", "Lançamento atualizado" in texto(r) and "-R$ 30
 r = cliente.get("/lancamentos", query_string={**mes_ano, "tipo": "receita"})
 conferir("filtro por receitas esconde despesas", "Feira grande" not in texto(r) and "Salário" in texto(r))
 
-mes_passado = meubolso.mes_vizinho(hoje.month, hoje.year, -1)
+mes_passado = offbank.mes_vizinho(hoje.month, hoje.year, -1)
 r = cliente.get("/", query_string={"mes": mes_passado[0], "ano": mes_passado[1]})
 conferir("mês passado vazio, saldo acumulado vazio", "Nenhuma despesa neste mês" in texto(r))
 r = cliente.get("/", query_string={"mes": 13, "ano": 2026})
@@ -141,7 +141,7 @@ print("Backup protegido")
 
 def backups_manuais():
     # O login com senha forte já cria um backup automático (backup_auto_...); aqui contam só os manuais.
-    return [b for b in meubolso.backup.listar_backups() if not b["nome"].startswith(meubolso.backup.PREFIXO_AUTO)]
+    return [b for b in offbank.backup.listar_backups() if not b["nome"].startswith(offbank.backup.PREFIXO_AUTO)]
 
 
 r = cliente.post("/backup/criar", data={"senha": "errada"}, follow_redirects=True)
@@ -152,13 +152,13 @@ backups = backups_manuais()
 conferir("cria backup protegido (.mbk)", len(backups) == 1 and backups[0]["protegido"] and backups[0]["nome"].endswith(".mbk"))
 
 r = cliente.get(f"/backup/baixar/{backups[0]['nome']}")
-conferir("baixa o backup", r.status_code == 200 and r.data.startswith(meubolso.seguranca.MAGIA))
+conferir("baixa o backup", r.status_code == 200 and r.data.startswith(offbank.seguranca.MAGIA))
 conferir("o arquivo baixado não mostra nada legível",
          b"SQLite format 3" not in r.data and "Salário".encode() not in r.data and b"Pao" not in r.data and "Pão".encode() not in r.data)
 r = cliente.get("/backup/baixar/../../etc/passwd")
 conferir("nome de arquivo malicioso é barrado", r.status_code == 404)
 
-with open(os.path.join(os.environ["MEUBOLSO_BACKUPS"], backups[0]["nome"]), "rb") as arquivo_backup:
+with open(os.path.join(os.environ["OFFBANK_BACKUPS"], backups[0]["nome"]), "rb") as arquivo_backup:
     conteudo_backup = arquivo_backup.read()
 
 cliente.post("/novo/despesa", data={"valor": "99", "descricao": "Depois do backup", "categoria_id": cat_mercado["id"], "data": data_hoje})
@@ -191,17 +191,17 @@ conferir("backup adulterado é recusado", "incorreta" in texto(r) and tem_lancam
 r = restaurar(conteudo_backup)
 conferir("restaura backup válido e pede login", "Backup restaurado" in texto(r))
 conferir("lançamento feito depois do backup sumiu", not tem_lancamento_depois())
-copias = [b for b in meubolso.backup.listar_backups() if "antes-de-restaurar" in b["nome"]]
+copias = [b for b in offbank.backup.listar_backups() if "antes-de-restaurar" in b["nome"]]
 conferir("restauração guardou cópia de segurança protegida", len(copias) == 1 and copias[0]["protegido"])
 r = cliente.post("/login", data={"senha": NOVA})
 conferir("depois de restaurar, entra com a senha da cópia", r.status_code == 302)
 
 r = cliente.post(f"/backup/excluir/{copias[0]['nome']}", follow_redirects=True)
-conferir("exclui backup do aparelho", "Backup excluído" in texto(r) and not any("antes-de" in b["nome"] for b in meubolso.backup.listar_backups()))
+conferir("exclui backup do aparelho", "Backup excluído" in texto(r) and not any("antes-de" in b["nome"] for b in offbank.backup.listar_backups()))
 
 print("Backup antigo (.db sem proteção)")
 antigo_plano = os.path.join(pasta, "antigo.db")
-meubolso.backup._copiar_banco_para(antigo_plano)
+offbank.backup._copiar_banco_para(antigo_plano)
 with open(antigo_plano, "rb") as arquivo_antigo:
     conteudo_antigo = arquivo_antigo.read()
 cliente.post("/novo/despesa", data={"valor": "99", "descricao": "Depois do backup", "categoria_id": cat_mercado["id"], "data": data_hoje})

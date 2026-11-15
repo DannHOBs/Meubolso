@@ -2,7 +2,7 @@
 <resources>
 
     <!-- Android 12+: a abertura do sistema já usa a cor e o ícone do app, e emenda na tela de abertura do MainActivity. -->
-    <style name="TemaMeuBolso" parent="TemaMeuBolso.Base">
+    <style name="TemaOffBank" parent="TemaOffBank.Base">
         <item name="android:windowSplashScreenBackground">@color/ic_launcher_background</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
     </style>

@@ -2,7 +2,7 @@
 <resources>
 
     <!-- DayNight: o modo escuro do celular chega até as telas (CSS prefers-color-scheme) e aos avisos. -->
-    <style name="TemaMeuBolso.Base" parent="@android:style/Theme.DeviceDefault.DayNight">
+    <style name="TemaOffBank.Base" parent="@android:style/Theme.DeviceDefault.DayNight">
         <item name="android:windowActionBar">false</item>
         <item name="android:windowNoTitle">true</item>
         <!-- Mesma cor da tela de abertura: nada de piscar branco ao abrir. -->
@@ -11,6 +11,6 @@
         <item name="android:windowLightStatusBar">false</item>
     </style>
 
-    <style name="TemaMeuBolso" parent="TemaMeuBolso.Base" />
+    <style name="TemaOffBank" parent="TemaOffBank.Base" />
 
 </resources>
