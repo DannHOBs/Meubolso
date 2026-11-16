@@ -1,4 +1,4 @@
-"""Cópias de segurança (backup) do Meu Bolso.
+"""Cópias de segurança (backup) do OffBank.
 
 Os backups novos são arquivos .mbk, protegidos por senha (veja seguranca.py).
 Ainda é possível restaurar arquivos .db antigos (sem proteção), mas o app não cria mais esse tipo.
@@ -13,12 +13,12 @@ from datetime import date, datetime
 import banco
 import seguranca
 
-PASTA_BACKUPS = os.getenv("MEUBOLSO_BACKUPS", "backups")
+PASTA_BACKUPS = os.getenv("OFFBANK_BACKUPS", "backups")
 
 PADRAO_NOME = re.compile(r"^backup_[\w\-]+\.(mbk|db)$")
 
 # Backup automático: criado ao entrar com a senha, no máximo uma vez por semana.
-# No Android, o app (Java) copia cada um para Downloads/MeuBolso e cria o marcador ".exportado".
+# No Android, o app (Java) copia cada um para Downloads/OffBank e cria o marcador ".exportado".
 PREFIXO_AUTO = "backup_auto"
 DIAS_ENTRE_AUTOMATICOS = 7
 AUTOMATICOS_GUARDADOS = 4
@@ -165,7 +165,7 @@ def backup_automatico(senha, hoje=None):
 
 
 def validar_arquivo(caminho):
-    """Confere se o arquivo é mesmo um banco do Meu Bolso. Devolve (ok, mensagem)."""
+    """Confere se o arquivo é mesmo um banco do OffBank. Devolve (ok, mensagem)."""
     try:
         conexao = sqlite3.connect(f"file:{caminho}?mode=ro", uri=True)
     except sqlite3.Error:
@@ -178,7 +178,7 @@ def validar_arquivo(caminho):
         }
 
         if not TABELAS_OBRIGATORIAS.issubset(tabelas):
-            return False, "Esse arquivo não é um backup do Meu Bolso."
+            return False, "Esse arquivo não é um backup do OffBank."
 
         resultado = conexao.execute("PRAGMA integrity_check").fetchone()[0]
 
@@ -252,4 +252,4 @@ def restaurar_de_upload(caminho_upload, senha_do_backup, senha_atual):
     if conteudo.startswith(ASSINATURA_SQLITE):
         return restaurar_de_arquivo(caminho_upload, senha_atual)
 
-    return False, "Esse arquivo não é um backup do Meu Bolso."
+    return False, "Esse arquivo não é um backup do OffBank."
